@@ -1,0 +1,16 @@
+# .NET
+bin/
+obj/
+*.user
+*.suo
+*.vscode/
+.vs/
+# OS
+.DS_Store
+Thumbs.db
+# Python artifacts (if any)
+__pycache__/
+*.pyc
+# Logs
+logs/
+*.log

@@ -1,0 +1,27 @@
+risk:
+  maxDebit: 800
+  maxSpreadsOpen: 5
+  maintPctMax: 0.35
+  deltaMax: 50
+  thetaMin: 0
+income:
+  dte: [5,9]
+  shortDelta: [0.20,0.25]
+  minCreditWidth: 0.30
+convex:
+  lowerDelta: [0.55,0.65]
+  targetRR: 2.0
+universe:
+  core: [APP, SOFI, META, GOOGL, AMD, AAL, SHOP, MRVL, PLTR, TSLA, MSFT, ZETA]
+  miners: [GDX, GDXJ, CCJ, URA, LIT, COPX, FCX, RIO, BHP, TECK]
+alerts:
+  thresholds:
+    shipScore: 75
+    reviewScore: 60
+  notify:
+    atRiskDelta: 0.35
+    tpCreditPct: [0.50, 0.60]
+exchanges:
+  route: SMART
+  tifEntry: DAY
+  tifExit: GTC
