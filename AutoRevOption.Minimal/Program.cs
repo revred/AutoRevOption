@@ -3,7 +3,9 @@
 // Matches hooks: scan → validate → verify → act
 
 using System.Collections.Concurrent;
+using System.Text.Json;
 using System.Text.RegularExpressions;
+using AutoRevOption;
 
 #pragma warning disable CS8618
 
@@ -121,10 +123,22 @@ public static class Program
     private static readonly string[] Universe = new[] { "APP","SOFI","META","GOOGL","AMD","AAL","SHOP","MRVL","PLTR","TSLA","MSFT","ZETA" };
     private static readonly IAutoRevOption Radar = new MockAutoRevOption();
 
-    public static async Task Main()
+    public static async Task Main(string[] args)
     {
+        // Check if running in MCP mode
+        if (args.Length > 0 && args[0] == "--mcp")
+        {
+            await ProgramMcp.MainMcp(args);
+            return;
+        }
+
+        // Regular interactive console mode
         Console.OutputEncoding = System.Text.Encoding.UTF8;
         Console.WriteLine("AutoRevOption — Console (demo)\n");
+
+        // Check IB Gateway status on startup
+        GatewayChecker.ShowGatewayStatus("127.0.0.1", 7497);
+
         while (true)
         {
             Menu();
@@ -182,6 +196,34 @@ public static class Program
 
     private static async Task NowAsync()
     {
+        Console.WriteLine("=== WP01 Demo: Top 3 Candidates with OrderPlan JSON ===\n");
+
+        // Initialize components
+        var configPath = Path.Combine(Directory.GetCurrentDirectory(), "..", "..", "OptionsRadar.yaml");
+        if (!File.Exists(configPath))
+        {
+            Console.WriteLine($"⚠️  OptionsRadar.yaml not found at {configPath}");
+            Console.WriteLine("Using hardcoded defaults...\n");
+        }
+
+        RulesEngine? rulesEngine = null;
+        try
+        {
+            if (File.Exists(configPath))
+            {
+                rulesEngine = RulesEngine.FromYamlFile(configPath);
+                Console.WriteLine("✅ Loaded OptionsRadar.yaml config\n");
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"⚠️  Failed to load YAML: {ex.Message}");
+        }
+
+        var exitPolicy = new ExitPolicy(TpMinPct: 0.50m, TpMaxPct: 0.60m, SlMultiplier: 2.0m);
+        var orderBuilder = new OrderBuilder(exitPolicy, "SMART", "DAY", "GTC");
+
+        // Scan for candidates
         var scan = await Radar.ScanAsync(Universe);
         var top = scan.OrderByDescending(x => x.Score).Take(3).ToList();
         if (!top.Any()) { Console.WriteLine("No actionable candidates.\n"); return; }
@@ -190,12 +232,37 @@ public static class Program
         for (int i = 0; i < top.Count; i++)
         {
             var c = top[i];
+
+            // Validate with mock
             var val = await Radar.ValidateAsync(c);
             var ver = await Radar.VerifyAsync("ibkr:primary", c);
-            var plan = await Radar.BuildOrderPlanAsync(c, quantity: 2);
+
+            // Validate with RulesEngine if available
+            if (rulesEngine != null)
+            {
+                var incomeValidation = rulesEngine.ValidateIncome(c);
+                var account = await Radar.GetAccountAsync("ibkr:primary");
+                var riskValidation = rulesEngine.ValidateRiskGates(c, account, currentOpenSpreads: 2);
+
+                Console.WriteLine($"[{i}] {c.Ticker} {c.Type} score {c.Score}");
+                Console.WriteLine($"    RulesEngine: Income={incomeValidation.IsValid} Risk={riskValidation.IsValid}");
+                if (incomeValidation.Violations.Any())
+                    Console.WriteLine($"    Issues: {string.Join(", ", incomeValidation.Violations.Select(v => v.Message))}");
+            }
+            else
+            {
+                Console.WriteLine($"[{i}] {c.Ticker} {c.Type} score {c.Score}");
+                Console.WriteLine($"    Validate: {(val.Ok ? "OK" : string.Join(",", val.Issues))} | Verify: {(ver.Ok ? "OK" : ver.Reason)}");
+            }
+
+            // Build OrderPlan
+            var plan = orderBuilder.BuildOrderPlan(c, quantity: 2);
             plans.Add(plan);
-            Console.WriteLine($"[{i}] {c.Ticker} {c.Type} score {c.Score}  → Plan {plan.OrderPlanId}");
-            Console.WriteLine($"    Validate: {(val.Ok ? "OK" : string.Join(",", val.Issues))} | Verify: {(ver.Ok ? "OK" : ver.Reason)}");
+
+            // Export as JSON
+            var json = orderBuilder.ToJson(plan);
+            Console.WriteLine($"\nOrderPlan JSON for {c.Ticker}:");
+            Console.WriteLine(json);
             Console.WriteLine($"    CONFIRM code: CONFIRM-{plan.OrderPlanId}\n");
         }
 

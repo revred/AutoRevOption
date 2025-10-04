@@ -1,0 +1,17 @@
+{
+  "mcpServers": {
+    "autorev-option": {
+      "command": "dotnet",
+      "args": [
+        "run",
+        "--project",
+        "C:\\Code\\AutoRevOption\\AutoRevOption.Minimal\\AutoRevOption.Minimal.csproj",
+        "--",
+        "--mcp"
+      ],
+      "env": {
+        "DOTNET_ENVIRONMENT": "Development"
+      }
+    }
+  }
+}

@@ -5,6 +5,7 @@ obj/
 *.suo
 *.vscode/
 .vs/
+.claude/
 # OS
 .DS_Store
 Thumbs.db
@@ -14,3 +15,10 @@ __pycache__/
 # Logs
 logs/
 *.log
+# Secrets and sensitive config
+secrets.json
+appsettings.*.json
+!appsettings.json
+*.secrets.json
+.env
+.env.*

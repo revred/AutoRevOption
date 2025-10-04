@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "autorev-monitor": {
+      "command": "dotnet",
+      "args": [
+        "run",
+        "--project",
+        "C:\\Code\\AutoRevOption\\AutoRevOption.Monitor\\AutoRevOption.Monitor.csproj",
+        "--",
+        "--mcp"
+      ]
+    }
+  }
+}
