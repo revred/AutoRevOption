@@ -64,7 +64,7 @@ AutoRevOption implements a **layered architecture** for systematic options tradi
 **`AutoRevOption.Shared.Configuration`**
 - `SecretConfig` - Credentials and secrets (loaded from secrets.json)
 - `IBKRCredentials` - IBKR Gateway connection details
-- `ThetaDataCredentials` - Market data API credentials
+- `IBKRMarketData` - IBKR market data subscription settings
 - `TradingLimits` - Account-level risk limits
 
 **`AutoRevOption.Shared.Ibkr`**

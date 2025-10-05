@@ -49,8 +49,9 @@ Create `secrets.json` in the repository root:
     "Username": "your-ibkr-username",
     "IsPaperTrading": true
   },
-  "ThetaDataCredentials": {
-    "ApiKey": "your-thetadata-key"
+  "IBKRMarketData": {
+    "SubscriptionActive": true,
+    "SubscriptionType": "US Securities Snapshot Bundle"
   },
   "TradingLimits": {
     "MaxDebit": 500,

@@ -7,7 +7,7 @@ namespace AutoRevOption.Shared.Configuration;
 public class SecretConfig
 {
     public IBKRCredentials IBKRCredentials { get; set; } = new();
-    public ThetaDataCredentials ThetaDataCredentials { get; set; } = new();
+    public IBKRMarketData IBKRMarketData { get; set; } = new();
     public TradingLimits TradingLimits { get; set; } = new();
 
     public static SecretConfig LoadFromFile(string path)
@@ -38,9 +38,10 @@ public class IBKRCredentials
     public int ReconnectDelaySeconds { get; set; } = 5;
 }
 
-public class ThetaDataCredentials
+public class IBKRMarketData
 {
-    public string ApiKey { get; set; } = string.Empty;
+    public bool SubscriptionActive { get; set; } = false;
+    public string SubscriptionType { get; set; } = string.Empty;
 }
 
 public class TradingLimits
