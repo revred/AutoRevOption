@@ -20,6 +20,7 @@
   <ItemGroup>
     <ProjectReference Include="..\AutoRevOption.Minimal\AutoRevOption.Minimal.csproj" />
     <ProjectReference Include="..\AutoRevOption.Monitor\AutoRevOption.Monitor.csproj" />
+    <ProjectReference Include="..\AutoRevOption.Shared\AutoRevOption.Shared.csproj" />
   </ItemGroup>
 
 </Project>
