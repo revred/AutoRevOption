@@ -1,0 +1,101 @@
+From 2222222222222222222222222222222222222222 Mon Sep 17 00:00:00 2001
+From: AutoRevOption Bot <bot@revred.dev>
+Date: 2025-10-05 10:20:40Z
+Subject: [PATCH] WP alignment for Monday readiness: monitoring→selection→execution→roll→close
+
+- Add WP05_MondayReadiness.md (end-to-end objectives & DoD)
+- Update README to point to Monday readiness plan
+- Ensure paper/live test matrix and audit artifacts are tracked
+
+---
+ README.md                           | 28 +++++++++++++++++++++++---
+ WorkPackages/WP05_MondayReadiness.md| 96 ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+ 2 files changed, 121 insertions(+), 3 deletions(-)
+ create mode 100644 WorkPackages/WP05_MondayReadiness.md
+
+diff --git a/README.md b/README.md
+index 0000001..0000002 100644
+--- a/README.md
++++ b/README.md
+@@ -1,6 +1,28 @@
+ # AutoRevOption
+ Purpose: MCP interface and console toolkit to scan, validate, verify, and act on options opportunities per `In2025At100K.md` rules.
+
+ ## Layout
+@@ -20,6 +42,8 @@
+     ├─ OptionsRadar.yaml             # Config knobs (risk, universe, strategies)
+     ├─ secrets.json                  # IBKR/API credentials (gitignored)
+     └─ .gitignore
++
++See WorkPackages/WP05_MondayReadiness.md for the operational end-to-end plan.
+
+diff --git a/WorkPackages/WP05_MondayReadiness.md b/WorkPackages/WP05_MondayReadiness.md
+new file mode 100644
+index 0000000..0000001 100644
+--- /dev/null
++++ b/WorkPackages/WP05_MondayReadiness.md
+@@ -0,0 +1,96 @@
+# WP05 — Monday Readiness (E2E)
+**Goal:** Be operational on Mondays with a repeatable flow: **Monitor ➜ Select ➜ Write/Stage ➜ Execute (paper) ➜ Roll ➜ Close**, with full audit & safety.
+
+## Scope
+- Covers *weekday open* routine, with emphasis on Mondays.
+- Applies to **paper** first, then **live** after passing gates.
+- Execution is optional; staging allowed if funds/leverage not admissible.
+
+## Inputs
+- `AutoRevOption.Monitor` MCP (read-only): `get_account_summary`, `get_positions`, `get_option_positions`, `get_account_greeks`.
+- `AutoRevOption.Minimal` MCP (selection): `scan_candidates`, `validate_candidate`, `verify_candidate`.
+- Event feeds: earnings, FOMC, CPI/PCE (per SelectTVC spec).
+
+## Deliverables (Definition of Done)
+- [ ] **Morning Snapshot**: JSON under `logs/snapshots/YYYY-MM-DD/` (health, greeks, exposure).
+- [ ] **Selection Artifacts**: TVC JSONs under `logs/tvc/YYYY-MM-DD/` (PASS/FAIL reasons).
+- [ ] **Staged Tickets** *(paper mode)*: Execution Cards under `logs/exec/cards/` with `mode=STAGE`.
+- [ ] **Paper Trades Executed**: if admissible & allowed in config, place paper orders; artifacts written.
+- [ ] **Roll Plan**: file per position under `logs/roll/YYYY-MM-DD/<SYMBOL>_<EXP>.json`.
+- [ ] **Close Plan**: candidates for close/TP/stop with rationale.
+- [ ] **Audit Bundle**: zipped `logs/**` for the day with a human `DailyReport.md`.
+
+## Tasks
+1. **Monitoring**
+   - [ ] Implement `/snapshots/morning` command (console & MCP) → writes snapshot JSON.
+   - [ ] Verify IBKR TWS connectivity for **paper** (`Port: 7497`).
+2. **Selection**
+   - [ ] Run `select` verb for SOFI/APP/RKLB/META/AMD/GOOGL with DTE 5–9.
+   - [ ] Enforce POP ≥ 75%, Reward/Day ≥ 2.5%, liquidity, IVR, event avoidance.
+3. **Write/Stage**
+   - [ ] For PASS TVCs, create **Execution Cards** with `mode=STAGE`.
+   - [ ] Check admissibility (maint%, defined-risk caps, per-symbol caps, freshness & credit drift).
+4. **Execute (Paper)**
+   - [ ] If admissible and `mode=EXECUTE_PAPER`, place orders via paper TWS with OCO (TP 50%, SL 2×).
+   - [ ] Store broker previews, orderIds, and fills under `logs/fills/`.
+5. **Roll Management**
+   - [ ] Generate roll cues when Δshort > 0.35 or touch; write roll JSON plan.
+6. **Close**
+   - [ ] Auto-close at TP hit; list near-expiry actions; handle losers per stop rule.
+7. **Reporting**
+   - [ ] Compile `DailyReport.md` (+ KPI: POP realized vs expected, P&L, fee drag).
+
+## Test Matrix
+| Mode | IBKR | Data | MCP | Expectation |
+|------|------|------|-----|-------------|
+| Unit | none | mock | n/a | Gates enforced (POP/Reward/IVR/liquidity/events) |
+| Dry-run | none | live chain | Select | TVCs produced, no order endpoints |
+| Paper | TWS:7497 | live chain | Select+Write | Staged ➜ Executed (paper), OCO attached |
+| Live (locked) | TWS:7496 | live chain | Select+Write | **STAGE only** until unblocked by checklist |
+
+## Readiness Checklist (must all be ✅)
+- [ ] **Connectivity**: TWS paper reachable; heartbeat stable.
+- [ ] **Safety Gates**: Unit tests green; Reward/Day & POP gates correct.
+- [ ] **Fees Model**: Brokerage calc validated on 2+ tickers.
+|- [ ] **Events Feed**: earnings/FOMC/CPI/PCE wired in TVCs.
+|- [ ] **Risk Caps**: per-trade ≤ $800, portfolio defined-risk ≤ 12% NetLiq.
+|- [ ] **Artifacts**: snapshots, TVCs, Exec Cards, rolls, fills saved.
+|- [ ] **Rollback**: ability to cancel open orders & disable executor quickly.
+
+## Acceptance
+- Monday run produces: snapshot, ≥1 PASS TVC, ≥1 staged ticket, and (if allowed) ≥1 executed **paper** position with OCO; roll/close plans emitted; audit bundle archived.
+
+## Notes
+- Live trades remain **disabled by default** until Paper SLA is met for a week.

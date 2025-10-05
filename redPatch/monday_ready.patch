@@ -1,0 +1,192 @@
+From 3333333333333333333333333333333333333333 Mon Sep 17 00:00:00 2001
+From: AutoRevOption Bot <bot@revred.dev>
+Date: 2025-10-05 10:20:40Z
+Subject: [PATCH] Monday-ready: checklist, scripts, modes (paper/live), and README playbook
+
+- Add DOCS/MondayReady.md (operational checklist & runbook)
+- Add scripts for Monday smoke tests (bash & PowerShell)
+- Extend OptionsRadar.yaml with run modes and symbols
+- README: Monday Playbook section with commands
+
+---
+ DOCS/MondayReady.md            | 140 +++++++++++++++++++++++++++++++++++++++++
+ scripts/monday-smoke.sh        |  62 +++++++++++++++++++
+ scripts/monday-smoke.ps1       |  66 ++++++++++++++++++++
+ OptionsRadar.yaml              |  24 ++++++-
+ README.md                      |  54 ++++++++++++++++
+ 5 files changed, 343 insertions(+), 3 deletions(-)
+ create mode 100644 DOCS/MondayReady.md
+ create mode 100755 scripts/monday-smoke.sh
+ create mode 100644 scripts/monday-smoke.ps1
+
+diff --git a/DOCS/MondayReady.md b/DOCS/MondayReady.md
+new file mode 100644
+index 0000000..0000001 100644
+--- /dev/null
++++ b/DOCS/MondayReady.md
+@@ -0,0 +1,140 @@
+# Monday Ready — Operational Checklist & Runbook
+
+This is the step-by-step for **Monday morning**. Selection and execution are **separate**. Live trading remains **off** until paper SLA is met.
+
+## 0) Modes
+- **DRY_RUN**: selection only, no orders, writes TVCs.
+- **PAPER**: selection + write with paper TWS (7497). Orders are allowed if admissible.
+- **LIVE_LOCKED**: selection + write, but execution hard-disabled (stage only).
+
+## 1) Pre-flight (15 min)
+- Verify TWS **paper** connection (Monitor app).
+- Run `scripts/monday-smoke.sh` (or `.ps1`) to generate:
+  - snapshot JSON (`logs/snapshots/...`)
+  - at least 3 TVCs across tickers
+  - staged Execution Cards (`mode=STAGE`)
+
+## 2) Selection (SelectTVC)
+```
+dotnet run --project AutoRevOption.Minimal -- select --universe SOFI,APP,RKLB,META,AMD,GOOGL --dte 5-9
+```
+Outputs TVCs; gates: **POP ≥ 75%**, **Reward/Day ≥ 2.5%**, IVR/liquidity/event checks.
+
+## 3) Write/Stage (WriteTVC)
+```
+dotnet run --project AutoRevOption.Minimal -- write --mode STAGE --input logs/tvc/$(date +%F)/*.json
+```
+Admissibility gates: maint%, defined-risk caps, per-symbol caps, freshness & drift.
+
+## 4) Execute (Paper)
+If `OptionsRadar.yaml: run.mode=PAPER`, executor may place paper orders with OCO (TP 50%, SL 2×).
+
+## 5) Roll & Close
+- Roll triggers: Δshort > 0.35 or strike touch; write roll plans.
+- Auto-close at TP; document stop actions.
+
+## 6) Reporting
+Run daily report aggregation to produce `DailyReport.md` and zip logs.
+
+## SLA to unlock LIVE
+- 5 consecutive trading days of paper runs with:
+  - ≥ 80% adherence to gates,
+  - net ≥ 0 P&L (after fees) for the period,
+  - no policy violations.
+
+## Kill-switch
+- Set `OptionsRadar.yaml: run.mode=LIVE_LOCKED` to disable execution immediately.
+
+## Artefact Paths
+- `logs/snapshots/YYYY-MM-DD/*.json`
+- `logs/tvc/YYYY-MM-DD/*.json`
+- `logs/exec/cards/*.json` (mode recorded)
+- `logs/roll/YYYY-MM-DD/*.json`
+- `logs/fills/*.json`
+
+---
+**Reminder:** Never blend selection with execution. Selection emits **TVCs** only.
+diff --git a/scripts/monday-smoke.sh b/scripts/monday-smoke.sh
+new file mode 100755
+index 0000000..0000002 100644
+--- /dev/null
++++ b/scripts/monday-smoke.sh
+@@ -0,0 +1,62 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+DATE="$(date +%F)"
+
+echo "== Monday Smoke (bash) =="
+
+echo "[1/4] Morning snapshot (paper)"
+dotnet run --project "$ROOT/AutoRevOption.Monitor" -- --snapshot --mode PAPER
+
+echo "[2/4] Selection (universe)"
+dotnet run --project "$ROOT/AutoRevOption.Minimal" -- select --universe SOFI,APP,RKLB,META,AMD,GOOGL --dte 5-9
+
+echo "[3/4] Stage all PASS TVCs"
+dotnet run --project "$ROOT/AutoRevOption.Minimal" -- write --mode STAGE --input "$ROOT/logs/tvc/$DATE"/*.json
+
+echo "[4/4] Summary"
+echo "Snapshot: logs/snapshots/$DATE"
+echo "TVCs:     logs/tvc/$DATE"
+echo "Tickets:  logs/exec/cards"
+
+echo "Done."
+diff --git a/scripts/monday-smoke.ps1 b/scripts/monday-smoke.ps1
+new file mode 100644
+index 0000000..0000003 100644
+--- /dev/null
++++ b/scripts/monday-smoke.ps1
+@@ -0,0 +1,66 @@
+Param(
+  [string]$Universe = "SOFI,APP,RKLB,META,AMD,GOOGL",
+  [string]$Dte = "5-9",
+  [ValidateSet("DRY_RUN","PAPER","LIVE_LOCKED")]
+  [string]$Mode = "PAPER"
+)
+
+$Root = Split-Path -Parent $PSScriptRoot
+$Date = Get-Date -Format "yyyy-MM-dd"
+
+Write-Host "== Monday Smoke (PowerShell) =="
+
+Write-Host "[1/4] Morning snapshot ($Mode)"
+dotnet run --project "$Root/AutoRevOption.Monitor" -- --snapshot --mode $Mode
+
+Write-Host "[2/4] Selection ($Universe, DTE $Dte)"
+dotnet run --project "$Root/AutoRevOption.Minimal" -- select --universe $Universe --dte $Dte
+
+Write-Host "[3/4] Stage all PASS TVCs"
+dotnet run --project "$Root/AutoRevOption.Minimal" -- write --mode STAGE --input "$Root/logs/tvc/$Date/*.json"
+
+Write-Host "[4/4] Summary"
+Write-Host "Snapshot: logs/snapshots/$Date"
+Write-Host "TVCs:     logs/tvc/$Date"
+Write-Host "Tickets:  logs/exec/cards"
+
+Write-Host "Done."
+diff --git a/OptionsRadar.yaml b/OptionsRadar.yaml
+index 0000002..0000003 100644
+--- a/OptionsRadar.yaml
++++ b/OptionsRadar.yaml
+@@ -1,6 +1,20 @@
+universe:
+  tickers: [SOFI, APP, RKLB, META, AMD, GOOGL]
+  default_dte: [5,9]
+
+run:
+  mode: PAPER            # DRY_RUN | PAPER | LIVE_LOCKED
+  max_age_minutes: 15
+  max_credit_drift: 0.05
+
+strategies:
+  - name: PCS
+    dte: [5,9]
+    delta_band: [0.20, 0.25]
+    min_credit_to_width_pct: 35
+
+selection_gates:
+  min_pop: 0.75
+  min_reward_per_day_pct: 2.5
+  min_ivr: 30
+  min_oi: 200
+  max_spread_bidask_abs: 0.05
+  max_spread_bidask_pct_of_credit: 0.10
+diff --git a/README.md b/README.md
+index 0000002..0000004 100644
+--- a/README.md
++++ b/README.md
+@@ -140,3 +140,57 @@
+ ## MCP
+ See DOCS/SelectTVC.md and DOCS/WriteTVC.md for the server tool contracts.
++
++## Monday Playbook
++See `DOCS/MondayReady.md`. Quick start:
++
++**Bash**
++```
++./scripts/monday-smoke.sh
++```
++
++**PowerShell**
++```
++pwsh ./scripts/monday-smoke.ps1
++```

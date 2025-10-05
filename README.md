@@ -23,9 +23,10 @@ This split ensures we can screen continuously even when funds are tight or lever
     ├─ secrets.json                  # IBKR/API credentials (gitignored)
     └─ .gitignore
 
-### New documents
+### Key Documents
 - `DOCS/SelectTVC.md` – selection-only pipeline spec
 - `DOCS/WriteTVC.md` – write/act pipeline spec
+- `WorkPackages/WP05_MondayReadiness.md` – **operational end-to-end plan** for Monday trading
 
 ## Run
 
