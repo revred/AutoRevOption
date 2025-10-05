@@ -10,6 +10,7 @@ Helper scripts for building, running, and testing AutoRevOption projects.
 | Run tests | `./scripts/test.sh` |
 | Run Minimal (demo) | `./scripts/run-minimal.sh` |
 | Run Monitor (IBKR) | `./scripts/run-monitor.sh` |
+| **Get positions** | `./scripts/get-positions.sh` |
 | Start Gateway + Monitor | `./scripts/start-gateway.sh` |
 | Check Gateway port | `./scripts/check-gateway-port.sh` |
 | Test MCP server (Minimal) | `./scripts/test-mcp-server.sh` |

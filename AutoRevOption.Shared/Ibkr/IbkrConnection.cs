@@ -68,27 +68,41 @@ public class IbkrConnection : EWrapper
         Console.WriteLine($"[IBKR] Connecting to {_credentials.Host}:{_credentials.Port} (ClientId: {_credentials.ClientId})...");
 
         _connectionComplete.Reset();
-        _client.eConnect(_credentials.Host, _credentials.Port, _credentials.ClientId);
+
+        // Run eConnect in a separate task to avoid blocking
+        await Task.Run(() => _client.eConnect(_credentials.Host, _credentials.Port, _credentials.ClientId));
+
+        Console.WriteLine($"[IBKR] eConnect() completed. IsConnected: {_client.IsConnected()}");
+
+        if (!_client.IsConnected())
+        {
+            Console.WriteLine("[IBKR] ❌ Failed to connect (eConnect failed immediately)");
+            return false;
+        }
 
         // Start message processing thread immediately
         var reader = new EReader(_client, _signal);
         reader.Start();
+        Console.WriteLine("[IBKR] EReader started, launching message processing thread...");
 
         _ = Task.Run(() =>
         {
+            Console.WriteLine("[IBKR] Message processing thread started");
             while (_client.IsConnected())
             {
                 _signal.waitForSignal();
                 reader.processMsgs();
             }
+            Console.WriteLine("[IBKR] Message processing thread exited");
         });
 
         // Wait for connection acknowledgment (with timeout)
+        Console.WriteLine("[IBKR] Waiting for connection acknowledgment (10s timeout)...");
         var connected = await Task.Run(() => _connectionComplete.WaitOne(10000));
 
         if (!connected || !_client.IsConnected())
         {
-            Console.WriteLine("[IBKR] ❌ Failed to connect (timeout or connection refused)");
+            Console.WriteLine($"[IBKR] ❌ Failed to connect (timeout or connection refused). Connected signal: {connected}, IsConnected: {_client.IsConnected()}");
             return false;
         }
 

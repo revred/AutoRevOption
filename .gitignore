@@ -25,3 +25,8 @@ appsettings.*.json
 *.secrets.json
 .env
 .env.*
+# Temporary scripts (keep root clean)
+*.ps1
+*.csx
+!scripts/*.ps1
+!scripts/*.csx
