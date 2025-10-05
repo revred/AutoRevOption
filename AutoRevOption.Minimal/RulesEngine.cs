@@ -2,7 +2,7 @@
 
 using YamlDotNet.Serialization;
 using YamlDotNet.Serialization.NamingConventions;
-using AutoRevOption.Shared.Models.Legacy;
+using AutoRevOption.Shared.Prime.Models;
 
 namespace AutoRevOption;
 

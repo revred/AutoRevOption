@@ -11,7 +11,7 @@
 using System.Text.Json;
 using AutoRevOption;
 using AutoRevOption.Shared.Context;
-using AutoRevOption.Shared.Models.Legacy;
+using AutoRevOption.Shared.Prime.Models;
 using Xunit;
 
 namespace AutoRevOption.Tests;

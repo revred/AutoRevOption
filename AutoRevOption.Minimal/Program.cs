@@ -6,7 +6,7 @@ using System.Collections.Concurrent;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using AutoRevOption;
-using AutoRevOption.Shared.Models.Legacy;
+using AutoRevOption.Shared.Prime.Models;
 
 #pragma warning disable CS8618
 

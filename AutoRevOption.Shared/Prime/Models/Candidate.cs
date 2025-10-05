@@ -1,6 +1,6 @@
-// Candidate.cs — Trade candidate (Legacy)
+// Candidate.cs — Trade candidate (Prime execution model)
 
-namespace AutoRevOption.Shared.Models.Legacy;
+namespace AutoRevOption.Shared.Prime.Models;
 
 /// <summary>
 /// Represents a candidate trade opportunity

@@ -1,6 +1,6 @@
-// StrategyType.cs — Option strategy types (Legacy)
+// StrategyType.cs — Option strategy types (Prime execution model)
 
-namespace AutoRevOption.Shared.Models.Legacy;
+namespace AutoRevOption.Shared.Prime.Models;
 
 /// <summary>
 /// Supported option strategy types

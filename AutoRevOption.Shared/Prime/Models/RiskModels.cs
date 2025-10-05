@@ -1,6 +1,6 @@
-// RiskModels.cs — Risk management models (Legacy)
+// RiskModels.cs — Risk management models (Prime execution model)
 
-namespace AutoRevOption.Shared.Models.Legacy;
+namespace AutoRevOption.Shared.Prime.Models;
 
 /// <summary>
 /// Risk guard parameters

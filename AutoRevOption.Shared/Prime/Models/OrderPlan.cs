@@ -1,6 +1,6 @@
-// OrderPlan.cs — Order execution plan with exits (Legacy)
+// OrderPlan.cs — Order execution plan with exits (Prime execution model)
 
-namespace AutoRevOption.Shared.Models.Legacy;
+namespace AutoRevOption.Shared.Prime.Models;
 
 /// <summary>
 /// Order plan with entry and exit brackets

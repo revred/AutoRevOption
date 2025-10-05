@@ -9,7 +9,7 @@
 // Safe to run anytime with: dotnet test
 
 using AutoRevOption;
-using AutoRevOption.Shared.Models.Legacy;
+using AutoRevOption.Shared.Prime.Models;
 using Xunit;
 
 namespace AutoRevOption.Tests;

@@ -1,6 +1,6 @@
-// OptionLeg.cs — Option leg definition (Legacy)
+// OptionLeg.cs — Option leg definition (Prime execution model)
 
-namespace AutoRevOption.Shared.Models.Legacy;
+namespace AutoRevOption.Shared.Prime.Models;
 
 /// <summary>
 /// Represents a single option leg in a multi-leg strategy
