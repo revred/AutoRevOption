@@ -3,6 +3,9 @@
 using System.Text.Json;
 using AutoRevOption.Monitor;
 using AutoRevOption.Monitor.Mcp;
+using AutoRevOption.Shared.Configuration;
+using AutoRevOption.Shared.Ibkr;
+using AutoRevOption.Shared.Mcp;
 
 namespace AutoRevOption.Monitor;
 

@@ -2,6 +2,7 @@
 
 using IBApi;
 using System.Collections.Concurrent;
+using AutoRevOption.Shared.Configuration;
 
 namespace AutoRevOption.Monitor;
 

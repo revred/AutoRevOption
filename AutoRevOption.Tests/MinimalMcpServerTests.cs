@@ -10,6 +10,8 @@
 
 using System.Text.Json;
 using AutoRevOption;
+using AutoRevOption.Shared.Mcp;
+using AutoRevOption.Shared.Models.Legacy;
 using Xunit;
 
 namespace AutoRevOption.Tests;
@@ -234,10 +236,7 @@ public class MinimalMcpServerTests
             Params = new McpParams
             {
                 Name = "validate_candidate",
-                Arguments = new Dictionary<string, object>
-                {
-                    ["candidateId"] = "INVALID:ID"
-                }
+                Arguments = JsonDocument.Parse("{\"candidateId\":\"INVALID:ID\"}").RootElement
             }
         };
 
@@ -288,11 +287,7 @@ public class MinimalMcpServerTests
             Params = new McpParams
             {
                 Name = "verify_candidate",
-                Arguments = new Dictionary<string, object>
-                {
-                    ["candidateId"] = "PCS:SHOP:2025-10-11:22-21:8dc9",
-                    ["accountId"] = "ibkr:test"
-                }
+                Arguments = JsonDocument.Parse("{\"candidateId\":\"PCS:SHOP:2025-10-11:22-21:8dc9\",\"accountId\":\"ibkr:test\"}").RootElement
             }
         };
 
@@ -343,11 +338,7 @@ public class MinimalMcpServerTests
             Params = new McpParams
             {
                 Name = "build_order_plan",
-                Arguments = new Dictionary<string, object>
-                {
-                    ["candidateId"] = "PCS:SHOP:2025-10-11:22-21:8dc9",
-                    ["quantity"] = 5
-                }
+                Arguments = JsonDocument.Parse("{\"candidateId\":\"PCS:SHOP:2025-10-11:22-21:8dc9\",\"quantity\":5}").RootElement
             }
         };
 
@@ -423,10 +414,7 @@ public class MinimalMcpServerTests
             Params = new McpParams
             {
                 Name = "get_account_status",
-                Arguments = new Dictionary<string, object>
-                {
-                    ["accountId"] = "ibkr:test"
-                }
+                Arguments = JsonDocument.Parse("{\"accountId\":\"ibkr:test\"}").RootElement
             }
         };
 
@@ -476,11 +464,7 @@ public class MinimalMcpServerTests
             Params = new McpParams
             {
                 Name = "act_on_order",
-                Arguments = new Dictionary<string, object>
-                {
-                    ["orderPlanId"] = orderPlanId,
-                    ["confirmationCode"] = $"CONFIRM-{orderPlanId}"
-                }
+                Arguments = JsonDocument.Parse($"{{\"orderPlanId\":\"{orderPlanId}\",\"confirmationCode\":\"CONFIRM-{orderPlanId}\"}}").RootElement
             }
         };
 
@@ -504,11 +488,7 @@ public class MinimalMcpServerTests
             Params = new McpParams
             {
                 Name = "act_on_order",
-                Arguments = new Dictionary<string, object>
-                {
-                    ["orderPlanId"] = "OP-TEST123",
-                    ["confirmationCode"] = "WRONG-CODE"
-                }
+                Arguments = JsonDocument.Parse("{\"orderPlanId\":\"OP-TEST123\",\"confirmationCode\":\"WRONG-CODE\"}").RootElement
             }
         };
 
@@ -552,12 +532,7 @@ public class MinimalMcpServerTests
             Params = new McpParams
             {
                 Name = "act_on_order",
-                Arguments = new Dictionary<string, object>
-                {
-                    ["orderPlanId"] = orderPlanId,
-                    ["confirmationCode"] = $"CONFIRM-{orderPlanId}",
-                    ["paper"] = true
-                }
+                Arguments = JsonDocument.Parse($"{{\"orderPlanId\":\"{orderPlanId}\",\"confirmationCode\":\"CONFIRM-{orderPlanId}\",\"paper\":true}}").RootElement
             }
         };
 

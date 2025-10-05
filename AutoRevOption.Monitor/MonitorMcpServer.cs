@@ -2,6 +2,9 @@
 
 using System.Text.Json;
 using AutoRevOption.Monitor;
+using AutoRevOption.Shared.Configuration;
+using AutoRevOption.Shared.Ibkr;
+using AutoRevOption.Shared.Mcp;
 
 namespace AutoRevOption.Monitor.Mcp;
 
@@ -176,7 +179,24 @@ public class MonitorMcpServer : IMonitorMcpServer
     private async Task<McpResponse> HandleToolCall(McpRequest request)
     {
         var toolName = request.Params?.Name;
-        var args = request.Params?.Arguments ?? new Dictionary<string, object>();
+        var argsJson = request.Params?.Arguments;
+
+        // Convert JsonElement to Dictionary for existing tool methods
+        var args = new Dictionary<string, object>();
+        if (argsJson.HasValue && argsJson.Value.ValueKind == JsonValueKind.Object)
+        {
+            foreach (var prop in argsJson.Value.EnumerateObject())
+            {
+                args[prop.Name] = prop.Value.ValueKind switch
+                {
+                    JsonValueKind.String => prop.Value.GetString() ?? "",
+                    JsonValueKind.True => true,
+                    JsonValueKind.False => false,
+                    JsonValueKind.Number => prop.Value.GetDouble(),
+                    _ => prop.Value.ToString()
+                };
+            }
+        }
 
         try
         {
@@ -389,29 +409,4 @@ public class MonitorMcpServer : IMonitorMcpServer
             timestamp = DateTime.UtcNow
         };
     }
-}
-
-// MCP Protocol Types (same as Minimal)
-public class McpRequest
-{
-    public string Method { get; set; } = "";
-    public McpParams? Params { get; set; }
-}
-
-public class McpParams
-{
-    public string? Name { get; set; }
-    public Dictionary<string, object>? Arguments { get; set; }
-}
-
-public class McpResponse
-{
-    public object? Result { get; set; }
-    public McpError? Error { get; set; }
-}
-
-public class McpError
-{
-    public int Code { get; set; }
-    public string Message { get; set; } = "";
 }

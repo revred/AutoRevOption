@@ -6,30 +6,9 @@ using System.Collections.Concurrent;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using AutoRevOption;
+using AutoRevOption.Shared.Models.Legacy;
 
 #pragma warning disable CS8618
-
-public enum StrategyType { PCS, CCS, BCS, BPS, DIAGONAL, PMCC, RV }
-
-public record OptionLeg(string Action, string Right, decimal Strike, DateOnly Exp, int Quantity = 1);
-
-public record Candidate(
-    string Id, string Ticker, StrategyType Type, List<OptionLeg> Legs,
-    decimal Width, decimal? Credit, decimal? Debit, decimal? ShortDelta,
-    int IvRank, int Score, string Playbook, List<string> Notes
-);
-
-public record OrderPlan(string CandidateId, string OrderPlanId, Combo Combination, Exits Exits);
-public record Combo(string Route, string TimeInForce, List<OptionLeg> Legs);
-public record Exits(TakeProfit Tp, StopLoss Sl);
-public record TakeProfit(string Type, string Side, string CreditPct, string Tif, string OcaGroup);
-public record StopLoss(string Type, string Side, string Trigger, string Tif, string OcaGroup);
-
-public record RiskGuards(decimal MaxDebit, decimal MaxML, int MaxOpenSpreads, decimal MaintPctMax, decimal DeltaMax, decimal ThetaMin);
-public record RiskCheckRequest(string AccountId, string CandidateId, RiskGuards Guards);
-public record ValidateResponse(bool Ok, List<string> Issues);
-public record VerifyResponse(bool Ok, int Score, string Reason, string Slippage);
-public record AccountSnapshot(decimal NetLiq, decimal MaintPct, decimal AccountDelta, decimal AccountTheta);
 
 // ---------- MCP Hook Interface ----------
 public interface IAutoRevOption
@@ -137,7 +116,8 @@ public static class Program
         Console.WriteLine("AutoRevOption — Console (demo)\n");
 
         // Check IB Gateway status on startup
-        GatewayChecker.ShowGatewayStatus("127.0.0.1", 7497);
+        // Note: Full GatewayManager available in Shared library if needed
+        Console.WriteLine("Gateway check: Use Monitor project for full IBKR integration\n");
 
         while (true)
         {

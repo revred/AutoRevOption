@@ -1,6 +1,7 @@
 // McpServer.cs — MCP Server implementation for AutoRevOption
 
 using System.Text.Json;
+using AutoRevOption.Shared.Mcp;
 
 namespace AutoRevOption;
 
@@ -21,7 +22,7 @@ public class AutoRevOptionMcpServer : IMcpServer
 
     public async Task<McpResponse> HandleRequest(McpRequest request)
     {
-        return request.Method switch
+        return request.Method?.ToLower() switch
         {
             "initialize" => HandleInitialize(request),
             "tools/list" => HandleListTools(),
@@ -500,36 +501,4 @@ public class AutoRevOptionMcpServer : IMcpServer
             }
         };
     }
-}
-
-// MCP Protocol Types
-public class McpRequest
-{
-    public string Method { get; set; } = "";
-    public McpParams? Params { get; set; }
-}
-
-public class McpParams
-{
-    public string? Name { get; set; }
-    public JsonElement? Arguments { get; set; }
-}
-
-public class McpResponse
-{
-    public object? Result { get; set; }
-    public McpError? Error { get; set; }
-}
-
-public class McpError
-{
-    public int Code { get; set; }
-    public string Message { get; set; } = "";
-}
-
-public interface IMcpServer
-{
-    string Name { get; }
-    string Version { get; }
-    Task<McpResponse> HandleRequest(McpRequest request);
 }

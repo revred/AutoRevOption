@@ -2,6 +2,8 @@
 // Establishes connection and displays account/position data
 
 using AutoRevOption.Monitor;
+using AutoRevOption.Shared.Configuration;
+using AutoRevOption.Shared.Ibkr;
 
 // Check if running in MCP mode
 if (args.Length > 0 && args[0] == "--mcp")

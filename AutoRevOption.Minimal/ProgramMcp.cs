@@ -2,6 +2,7 @@
 
 using System.Text.Json;
 using AutoRevOption;
+using AutoRevOption.Shared.Mcp;
 
 public static class ProgramMcp
 {
