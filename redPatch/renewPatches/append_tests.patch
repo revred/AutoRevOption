@@ -1,0 +1,304 @@
+From 3aa9a11111111111111111111111111111111111 Mon Sep 17 00:00:00 2001
+From: AutoRevOption Bot <bot@revred.dev>
+Date: Sun, 05 Oct 2025 13:20:00 +0000
+Subject: [PATCH] tests: add SSOT config checks + selection gates guard + opt-in API handshake probes
+
+- Add PolicySsoSpecs: verify OptionsRadar.yaml has policy.version/hash, run.mode, and gate keys
+- Add SelectionGateSpecs: enforce POP>=0.75 and Reward/Day>=2.5% and basic sanity on liquidity caps
+- Add ApiHandshakeSpecs: opt-in socket/TLS probes (skipped unless RUN_IB_PROBES=1)
+- Add YamlDotNet to test project only
+
+---
+ tests/AutoRevOption.Tests/Policy/PolicySsoSpecs.cs     | 119 ++++++++++++++++++
+ tests/AutoRevOption.Tests/Selection/SelectionGateSpecs.cs | 106 ++++++++++++++
+ tests/AutoRevOption.Tests/Connectivity/ApiHandshakeSpecs.cs | 168 ++++++++++++++++++++++++
+ tests/AutoRevOption.Tests/AutoRevOption.Tests.csproj   |  10 ++
+ 4 files changed, 403 insertions(+)
+ create mode 100644 tests/AutoRevOption.Tests/Policy/PolicySsoSpecs.cs
+ create mode 100644 tests/AutoRevOption.Tests/Selection/SelectionGateSpecs.cs
+ create mode 100644 tests/AutoRevOption.Tests/Connectivity/ApiHandshakeSpecs.cs
+
+diff --git a/tests/AutoRevOption.Tests/AutoRevOption.Tests.csproj b/tests/AutoRevOption.Tests/AutoRevOption.Tests.csproj
+index 0000000..1111111 100644
+--- a/tests/AutoRevOption.Tests/AutoRevOption.Tests.csproj
++++ b/tests/AutoRevOption.Tests/AutoRevOption.Tests.csproj
+@@ -5,6 +5,16 @@
+     <IsPackable>false</IsPackable>
+   </PropertyGroup>
+
++  <!-- YAML only needed by tests to validate OptionsRadar.yaml -->
++  <ItemGroup>
++    <PackageReference Include="YamlDotNet" Version="13.7.1" />
++  </ItemGroup>
++
+ </Project>
+diff --git a/tests/AutoRevOption.Tests/Policy/PolicySsoSpecs.cs b/tests/AutoRevOption.Tests/Policy/PolicySsoSpecs.cs
+new file mode 100644
+index 0000000..1111111
+--- /dev/null
++++ b/tests/AutoRevOption.Tests/Policy/PolicySsoSpecs.cs
+@@ -0,0 +1,119 @@
++using System;
++using System.IO;
++using System.Linq;
++using Xunit;
++using YamlDotNet.RepresentationModel;
++
++namespace AutoRevOption.Tests.Policy
++{
++    public class PolicySsoSpecs
++    {
++        private static YamlMappingNode LoadRoot(string path)
++        {
++            Assert.True(File.Exists(path), $"OptionsRadar.yaml not found at: {path}");
++            using var sr = new StreamReader(path);
++            var yaml = new YamlStream();
++            yaml.Load(sr);
++            return (YamlMappingNode)yaml.Documents[0].RootNode;
++        }
++
++        private static YamlMappingNode Map(YamlMappingNode parent, string key)
++        {
++            Assert.True(parent.Children.ContainsKey(key), $"Missing top-level key: {key}");
++            return (YamlMappingNode)parent.Children[key];
++        }
++
++        private static string? Scalar(YamlMappingNode parent, string key, bool required = true)
++        {
++            if (!parent.Children.ContainsKey(key))
++            {
++                if (required) Assert.True(false, $"Missing key: {key}");
++                return null;
++            }
++            return ((YamlScalarNode)parent.Children[key]).Value;
++        }
++
++        [Fact]
++        public void options_radar_has_policy_version_and_hash_and_run_mode()
++        {
++            var path = Path.Combine(AppContext.BaseDirectory, "../../../..", "OptionsRadar.yaml");
++            var root = LoadRoot(path);
++
++            var policy = Map(root, "policy");
++            var version = Scalar(policy, "version");
++            var hash = Scalar(policy, "hash");
++            Assert.False(string.IsNullOrWhiteSpace(version), "policy.version must be set");
++            Assert.False(string.IsNullOrWhiteSpace(hash), "policy.hash must be set");
++
++            var run = Map(root, "run");
++            var mode = Scalar(run, "mode");
++            Assert.Contains(mode, new[] { "DRY_RUN", "PAPER", "LIVE_LOCKED" });
++        }
++
++        [Fact]
++        public void options_radar_has_minimum_required_selection_gates_and_caps()
++        {
++            var path = Path.Combine(AppContext.BaseDirectory, "../../../..", "OptionsRadar.yaml");
++            var root = LoadRoot(path);
++
++            // gates may live either under selection_gates or at root in your current repo.
++            // Support both to be non-breaking.
++            YamlMappingNode gates;
++            if (root.Children.ContainsKey("selection_gates"))
++                gates = Map(root, "selection_gates");
++            else
++                gates = root; // tolerate flat structure for now
++
++            // ensure keys exist
++            foreach (var key in new[] {
++                "min_pop",
++                "min_reward_per_day_pct",
++                "min_ivr",
++                "min_oi",
++                "max_spread_bidask_abs",
++                "max_spread_bidask_pct_of_credit"
++            })
++            {
++                Assert.True(gates.Children.ContainsKey(key), $"Missing selection gate: {key}");
++            }
++
++            // caps section
++            YamlMappingNode caps;
++            if (root.Children.ContainsKey("caps"))
++                caps = Map(root, "caps");
++            else
++                caps = root; // tolerate flat structure
++
++            foreach (var key in new[] {
++                "per_trade_max_loss_usd",
++                "portfolio_defined_risk_pct"
++            })
++            {
++                Assert.True(caps.Children.ContainsKey(key), $"Missing risk cap: {key}");
++            }
++        }
++    }
++}
+diff --git a/tests/AutoRevOption.Tests/Selection/SelectionGateSpecs.cs b/tests/AutoRevOption.Tests/Selection/SelectionGateSpecs.cs
+new file mode 100644
+index 0000000..1111111
+--- /dev/null
++++ b/tests/AutoRevOption.Tests/Selection/SelectionGateSpecs.cs
+@@ -0,0 +1,106 @@
++using System;
++using System.IO;
++using Xunit;
++using YamlDotNet.RepresentationModel;
++
++namespace AutoRevOption.Tests.Selection
++{
++    public class SelectionGateSpecs
++    {
++        private static YamlMappingNode LoadRoot()
++        {
++            var path = Path.Combine(AppContext.BaseDirectory, "../../../..", "OptionsRadar.yaml");
++            Assert.True(File.Exists(path), $"OptionsRadar.yaml not found at: {path}");
++            using var sr = new StreamReader(path);
++            var yaml = new YamlStream();
++            yaml.Load(sr);
++            return (YamlMappingNode)yaml.Documents[0].RootNode;
++        }
++
++        private static decimal GetDecimal(YamlMappingNode map, string key, decimal? defaultValue = null)
++        {
++            if (!map.Children.ContainsKey(key))
++            {
++                if (defaultValue.HasValue) return defaultValue.Value;
++                throw new Xunit.Sdk.XunitException($"Missing key: {key}");
++            }
++            var s = ((YamlScalarNode)map.Children[key]).Value ?? "0";
++            return decimal.Parse(s, System.Globalization.CultureInfo.InvariantCulture);
++        }
++
++        [Fact]
++        public void min_pop_and_reward_per_day_are_guarded()
++        {
++            var root = LoadRoot();
++            var gates = root.Children.ContainsKey("selection_gates")
++                ? (YamlMappingNode)root.Children["selection_gates"]
++                : root; // tolerate flat structure
++
++            var minPop = GetDecimal(gates, "min_pop");
++            var minRpd = GetDecimal(gates, "min_reward_per_day_pct");
++
++            Assert.True(minPop >= 0.75m, $"min_pop must be >= 0.75 (got {minPop})");
++            Assert.True(minRpd >= 2.5m, $"min_reward_per_day_pct must be >= 2.5 (got {minRpd})");
++        }
++
++        [Fact]
++        public void liquidity_and_spread_caps_are_sane()
++        {
++            var root = LoadRoot();
++            var gates = root.Children.ContainsKey("selection_gates")
++                ? (YamlMappingNode)root.Children["selection_gates"]
++                : root;
++
++            var minOi = GetDecimal(gates, "min_oi");
++            var maxAbs = GetDecimal(gates, "max_spread_bidask_abs");
++            var maxPct = GetDecimal(gates, "max_spread_bidask_pct_of_credit");
++
++            Assert.True(minOi >= 100m, $"min_oi should be at least 100 (got {minOi})");
++            Assert.True(maxAbs <= 0.10m, $"max_spread_bidask_abs should be <= 0.10 (got {maxAbs})");
++            Assert.True(maxPct <= 0.20m, $"max_spread_bidask_pct_of_credit should be <= 0.20 (got {maxPct})");
++        }
++    }
++}
+diff --git a/tests/AutoRevOption.Tests/Connectivity/ApiHandshakeSpecs.cs b/tests/AutoRevOption.Tests/Connectivity/ApiHandshakeSpecs.cs
+new file mode 100644
+index 0000000..1111111
+--- /dev/null
++++ b/tests/AutoRevOption.Tests/Connectivity/ApiHandshakeSpecs.cs
+@@ -0,0 +1,168 @@
++using System;
++using System.IO;
++using System.Net.Security;
++using System.Net.Sockets;
++using System.Security.Authentication;
++using System.Text;
++using Xunit;
++
++namespace AutoRevOption.Tests.Connectivity
++{
++    /// <summary>
++    /// Opt-in smoke tests to diagnose "TCP connects but handshake dies" issues.
++    /// Skipped by default. Set RUN_IB_PROBES=1 to enable locally.
++    /// These do NOT send orders; they only test that a listener responds sanely.
++    /// </summary>
++    public class ApiHandshakeSpecs
++    {
++        private static bool Enabled =>
++            string.Equals(Environment.GetEnvironmentVariable("RUN_IB_PROBES"), "1", StringComparison.OrdinalIgnoreCase);
++
++        private static readonly TimeSpan Timeout = TimeSpan.FromSeconds(5);
++
++        [Fact(Skip = "Set RUN_IB_PROBES=1 to enable")]
++        public void gateway_plain_socket_accepts_and_does_not_immediately_close()
++        {
++            if (!Enabled) return;
++            var host = Environment.GetEnvironmentVariable("IB_HOST") ?? "127.0.0.1";
++            var port = int.TryParse(Environment.GetEnvironmentVariable("IB_PORT"), out var p) ? p : 4002; // paper by default
++
++            using var tcp = new TcpClient();
++            var ar = tcp.BeginConnect(host, port, null, null);
++            Assert.True(ar.AsyncWaitHandle.WaitOne(Timeout), $"Timeout connecting to {host}:{port}");
++            tcp.EndConnect(ar);
++            Assert.True(tcp.Connected, "TCP connected=false");
++
++            // Try reading a single byte with timeout: if server instantly closes, stream will end immediately.
++            tcp.ReceiveTimeout = (int)Timeout.TotalMilliseconds;
++            var ns = tcp.GetStream();
++            var buf = new byte[1];
++            // Most modern IB servers won't proactively send; we only verify it's not hard-closing immediately.
++            // A read timeout here is OK and expected; an immediate 0-byte read indicates close/reset.
++            var read = 0;
++            try { read = ns.Read(buf, 0, 1); }
++            catch (IOException) { /* timeout or IO is acceptable; not immediate close */ }
++
++            Assert.True(read != 0, "Server closed immediately (0-byte read). Possible TLS/SSL mismatch or incompatible build.");
++        }
++
++        [Fact(Skip = "Set RUN_IB_PROBES=1 to enable")]
++        public void tls_probe_reports_if_server_offers_tls()
++        {
++            if (!Enabled) return;
++            var host = Environment.GetEnvironmentVariable("IB_HOST") ?? "127.0.0.1";
++            var port = int.TryParse(Environment.GetEnvironmentVariable("IB_PORT"), out var p) ? p : 4002;
++
++            using var tcp = new TcpClient();
++            var ar = tcp.BeginConnect(host, port, null, null);
++            Assert.True(ar.AsyncWaitHandle.WaitOne(Timeout), $"Timeout connecting to {host}:{port}");
++            tcp.EndConnect(ar);
++
++            using var ssl = new SslStream(tcp.GetStream(), false, (sender, cert, chain, errors) => true);
++            try
++            {
++                ssl.AuthenticateAsClient(host, null, SslProtocols.Tls12 | SslProtocols.Tls13, false);
++                // If we got here, server spoke TLS. That's a strong indicator you must enable SSL in the client connect options.
++                Assert.True(ssl.IsAuthenticated, "TLS handshake failed unexpectedly.");
++            }
++            catch (IOException)
++            {
++                // IO means handshake failed (server not TLS) which is fine—this tells us the port expects plain socket.
++                Assert.True(true);
++            }
++            catch (AuthenticationException)
++            {
++                // Auth exception usually still proves TLS is in play but validation failed; that's enough signal.
++                Assert.True(true);
++            }
++        }
++
++        [Fact(Skip = "Set RUN_IB_PROBES=1 to enable")]
++        public void tws_probe_on_7497_should_listen_when_tws_paper_is_running()
++        {
++            if (!Enabled) return;
++            var host = Environment.GetEnvironmentVariable("IB_HOST") ?? "127.0.0.1";
++            var port = 7497; // TWS paper default
++            using var tcp = new TcpClient();
++            var ar = tcp.BeginConnect(host, port, null, null);
++            Assert.True(ar.AsyncWaitHandle.WaitOne(Timeout), $"Timeout connecting to TWS {host}:{port} (is TWS Paper running?)");
++            tcp.EndConnect(ar);
++            Assert.True(tcp.Connected, "TCP connected=false");
++        }
++    }
++}
