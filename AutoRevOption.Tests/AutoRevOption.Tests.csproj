@@ -23,4 +23,11 @@
     <ProjectReference Include="..\AutoRevOption.Shared\AutoRevOption.Shared.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- Reference to IBKR TWS API C# Client for debug tests -->
+    <Reference Include="CSharpAPI">
+      <HintPath>C:\IBKR\TWS_API\source\CSharpClient\client\bin\Release\netstandard2.0\CSharpAPI.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+
 </Project>
