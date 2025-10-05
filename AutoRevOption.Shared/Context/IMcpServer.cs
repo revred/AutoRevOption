@@ -1,6 +1,6 @@
 // IMcpServer.cs — Common MCP server interface
 
-namespace AutoRevOption.Shared.Mcp;
+namespace AutoRevOption.Shared.Context;
 
 /// <summary>
 /// Common interface for MCP servers

@@ -1,7 +1,7 @@
 // McpServer.cs — MCP Server implementation for AutoRevOption
 
 using System.Text.Json;
-using AutoRevOption.Shared.Mcp;
+using AutoRevOption.Shared.Context;
 
 namespace AutoRevOption;
 

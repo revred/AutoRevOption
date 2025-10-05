@@ -2,7 +2,7 @@
 
 using System.Text.Json;
 
-namespace AutoRevOption.Shared.Mcp;
+namespace AutoRevOption.Shared.Context;
 
 /// <summary>
 /// MCP request message

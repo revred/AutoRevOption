@@ -13,7 +13,7 @@
 
 using System.Text.Json;
 using AutoRevOption;
-using AutoRevOption.Shared.Mcp;
+using AutoRevOption.Shared.Context;
 using Xunit;
 
 namespace AutoRevOption.Tests;
