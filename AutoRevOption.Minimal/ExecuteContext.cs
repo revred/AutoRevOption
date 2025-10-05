@@ -1,23 +1,23 @@
-// McpServer.cs — MCP Server implementation for AutoRevOption
+// ExecuteContext.cs — Execute Context Server for AutoRevOption
 
 using System.Text.Json;
 using AutoRevOption.Shared.Context;
 
 namespace AutoRevOption;
 
-public class AutoRevOptionMcpServer : IMcpServer
+public class ExecuteContext : IMcpServer
 {
     private readonly IAutoRevOption _radar;
     private readonly string[] _universe;
     private readonly string _version = "1.0.0";
 
-    public AutoRevOptionMcpServer(IAutoRevOption radar, string[] universe)
+    public ExecuteContext(IAutoRevOption radar, string[] universe)
     {
         _radar = radar;
         _universe = universe;
     }
 
-    public string Name => "AutoRevOption";
+    public string Name => "AutoRevOption-Execute";
     public string Version => _version;
 
     public async Task<McpResponse> HandleRequest(McpRequest request)

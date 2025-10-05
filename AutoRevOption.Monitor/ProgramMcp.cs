@@ -80,7 +80,7 @@ public static class ProgramMcp
         }
 
         // Create MCP server
-        var server = new MonitorMcpServer(ibkr, gatewayManager, config.IBKRCredentials);
+        var server = new ScreenContext(ibkr, gatewayManager, config.IBKRCredentials);
 
         Console.Error.WriteLine($"[MCP] {server.Name} v{server.Version} started");
         Console.Error.WriteLine("[MCP] Listening on stdio...");

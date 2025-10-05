@@ -28,7 +28,7 @@ public static class ProgramMcp
     private static async Task RunMcpServer()
     {
         var radar = new MockAutoRevOption();
-        var server = new AutoRevOptionMcpServer(radar, Universe);
+        var server = new ExecuteContext(radar, Universe);
 
         // MCP server runs via stdio
         Console.Error.WriteLine($"[MCP] {server.Name} v{server.Version} started");

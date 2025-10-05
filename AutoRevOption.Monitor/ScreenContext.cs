@@ -1,4 +1,4 @@
-// MonitorMcpServer.cs — MCP Server for IBKR Monitor (read-only operations)
+// ScreenContext.cs — Screen Context Server for IBKR Monitor (read-only operations)
 
 using System.Text.Json;
 using AutoRevOption.Monitor;
@@ -8,23 +8,20 @@ using AutoRevOption.Shared.Context;
 
 namespace AutoRevOption.Monitor.Mcp;
 
-public interface IMonitorMcpServer
+public interface IScreenContext : IMcpServer
 {
-    string Name { get; }
-    string Version { get; }
-    Task<McpResponse> HandleRequest(McpRequest request);
 }
 
-public class MonitorMcpServer : IMonitorMcpServer
+public class ScreenContext : IScreenContext
 {
     private readonly IbkrConnection _ibkr;
     private readonly GatewayManager _gateway;
     private readonly IBKRCredentials _credentials;
 
-    public string Name => "AutoRevOption-Monitor";
+    public string Name => "AutoRevOption-Screen";
     public string Version => "1.0.0";
 
-    public MonitorMcpServer(IbkrConnection ibkr, GatewayManager gateway, IBKRCredentials credentials)
+    public ScreenContext(IbkrConnection ibkr, GatewayManager gateway, IBKRCredentials credentials)
     {
         _ibkr = ibkr;
         _gateway = gateway;

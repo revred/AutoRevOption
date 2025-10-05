@@ -18,13 +18,13 @@ namespace AutoRevOption.Tests;
 
 public class MinimalMcpServerTests
 {
-    private readonly AutoRevOptionMcpServer _server;
+    private readonly ExecuteContext _server;
     private readonly string[] _testUniverse = new[] { "SHOP", "GOOGL", "MSFT" };
 
     public MinimalMcpServerTests()
     {
         var radar = new MockAutoRevOption();
-        _server = new AutoRevOptionMcpServer(radar, _testUniverse);
+        _server = new ExecuteContext(radar, _testUniverse);
     }
 
     #region Protocol Tests
@@ -599,7 +599,7 @@ public class MinimalMcpServerTests
         var name = _server.Name;
 
         // Assert
-        Assert.Equal("AutoRevOption", name);
+        Assert.Equal("AutoRevOption-Execute", name);
     }
 
     [Fact]
