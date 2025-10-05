@@ -101,7 +101,7 @@ public class RulesEngineTests
 
         // Assert
         Assert.True(result.IsValid);
-        Assert.Empty(result.Violations.Where(v => v.Severity == "Error"));
+        Assert.DoesNotContain(result.Violations, v => v.Severity == "Error");
     }
 
     [Fact]
@@ -194,7 +194,7 @@ public class RulesEngineTests
 
         // Assert
         Assert.True(result.IsValid);
-        Assert.Empty(result.Violations.Where(v => v.Severity == "Error"));
+        Assert.DoesNotContain(result.Violations, v => v.Severity == "Error");
     }
 
     [Fact]
@@ -259,7 +259,7 @@ public class RulesEngineTests
 
         // Assert
         Assert.True(result.IsValid);
-        Assert.Empty(result.Violations.Where(v => v.Severity == "Error"));
+        Assert.DoesNotContain(result.Violations, v => v.Severity == "Error");
     }
 
     [Fact]

@@ -33,10 +33,10 @@ public class SelectTvcTests
     }
 
     [Fact]
-    public void EventAvoidanceIsRepresented()
+    public async Task EventAvoidanceIsRepresented()
     {
         var svc = new SelectTvcService();
-        var res = svc.EvaluateAsync(new SelectionRequest("SOFI", 5, 9), CancellationToken.None).Result;
+        var res = await svc.EvaluateAsync(new SelectionRequest("SOFI", 5, 9), CancellationToken.None);
         var tvc = res.Single();
         Assert.NotNull(tvc.Events.Earnings);
         Assert.NotNull(tvc.Events.Fomc);

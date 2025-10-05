@@ -4,26 +4,19 @@ Helper scripts for building, running, and testing AutoRevOption projects.
 
 ## Quick Reference
 
-| Task | Windows | Linux/Mac |
-|------|---------|-----------|
-| Build solution | `scripts\build.bat` | `./scripts/build.sh` |
-| Run tests | `scripts\test.bat` | `./scripts/test.sh` |
-| Run Minimal (demo) | `scripts\run-minimal.bat` | `./scripts/run-minimal.sh` |
-| Run Monitor (IBKR) | `scripts\run-monitor.bat` | `./scripts/run-monitor.sh` |
-| Start Gateway + Monitor | `scripts\start-gateway.bat` | `./scripts/start-gateway.sh` |
-| Check Gateway port | `scripts\check-gateway-port.bat` | `./scripts/check-gateway-port.sh` |
+| Task | Script |
+|------|--------|
+| Build solution | `./scripts/build.sh` |
+| Run tests | `./scripts/test.sh` |
+| Run Minimal (demo) | `./scripts/run-minimal.sh` |
+| Run Monitor (IBKR) | `./scripts/run-monitor.sh` |
+| Start Gateway + Monitor | `./scripts/start-gateway.sh` |
+| Check Gateway port | `./scripts/check-gateway-port.sh` |
+| Test MCP server (Minimal) | `./scripts/test-mcp-server.sh` |
+| Test MCP server (Monitor) | `./scripts/test-mcp-monitor.sh` |
 
 ## Quick Start
 
-**Windows:**
-```cmd
-scripts\build.bat       # Build solution
-scripts\test.bat        # Run all tests
-scripts\run-minimal.bat # Start demo console
-scripts\run-monitor.bat # Start IBKR monitor
-```
-
-**Linux/Mac:**
 ```bash
 chmod +x scripts/*.sh
 ./scripts/build.sh       # Build solution
@@ -31,6 +24,8 @@ chmod +x scripts/*.sh
 ./scripts/run-minimal.sh # Start demo console
 ./scripts/run-monitor.sh # Start IBKR monitor
 ```
+
+**Windows users:** Use Git Bash or WSL to run .sh scripts.
 
 ## Prerequisites
 

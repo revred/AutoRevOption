@@ -52,10 +52,18 @@ Key gates validated by tests:
 - Event avoidance (ER/FOMC/CPI/PCE)
 - Liquidity floors and credit drift
 
-## MCP
-Minimal server exposes tools for selection and write/act; see `DOCS/SelectTVC.md` and `DOCS/WriteTVC.md`.
+## Scripts
 
-### 4. MCP Server Mode (Claude Desktop Integration)
+See [scripts/README.md](scripts/README.md) for all available helper scripts.
+
+```bash
+./scripts/build.sh       # Build solution
+./scripts/test.sh        # Run all tests
+./scripts/run-minimal.sh # Start demo console
+./scripts/run-monitor.sh # Start IBKR monitor
+```
+
+## MCP Server Mode (Claude Desktop Integration)
 
 **Minimal MCP Server** (Trading workflow with mock data):
 ```bash

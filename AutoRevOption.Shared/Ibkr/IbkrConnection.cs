@@ -123,8 +123,10 @@ public class IbkrConnection : EWrapper
         var reqId = _nextRequestId++;
         _client.reqAccountSummary(reqId, "All", "NetLiquidation,TotalCashValue,BuyingPower,MaintMarginReq");
 
-        // Wait for response
-        if (!_accountUpdateComplete.WaitOne(timeoutMs))
+        // Wait for response asynchronously
+        await Task.Run(() => _accountUpdateComplete.WaitOne(timeoutMs));
+
+        if (!_accountUpdateComplete.WaitOne(0))
         {
             Console.WriteLine("[IBKR] ⚠️  Account summary request timed out");
             return null;
@@ -145,8 +147,10 @@ public class IbkrConnection : EWrapper
 
         _client.reqPositions();
 
-        // Wait for response
-        if (!_positionsComplete.WaitOne(timeoutMs))
+        // Wait for response asynchronously
+        await Task.Run(() => _positionsComplete.WaitOne(timeoutMs));
+
+        if (!_positionsComplete.WaitOne(0))
         {
             Console.WriteLine("[IBKR] ⚠️  Positions request timed out");
             return new List<PositionInfo>();
