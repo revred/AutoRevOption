@@ -1,5 +1,11 @@
 universe:
   tickers: [SOFI, APP, RKLB, META, AMD, GOOGL]
+  default_dte: [5,9]
+
+run:
+  mode: PAPER            # DRY_RUN | PAPER | LIVE_LOCKED
+  max_age_minutes: 15
+  max_credit_drift: 0.05
 
 strategies:
   - name: PCS

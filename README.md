@@ -96,3 +96,17 @@ Edit `secrets.json` (gitignored):
 ```
 - Port 7497 = Paper Trading
 - Port 7496 = Live Trading
+
+## Monday Playbook
+See [DOCS/MondayReady.md](DOCS/MondayReady.md). Quick start:
+
+**Bash**
+```bash
+./scripts/monday-smoke.sh
+```
+
+This smoke test runs:
+1. Morning snapshot (paper TWS)
+2. Selection across universe (SOFI, APP, RKLB, META, AMD, GOOGL)
+3. Stage all PASS TVCs
+4. Summary of artifacts generated
