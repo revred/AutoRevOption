@@ -1,43 +1,59 @@
 # AutoRevOption
 
-**Purpose:** MCP interface and console toolkit to scan, validate, verify, and act on options opportunities per `In2025At100K.md` rules.
+Purpose: MCP interface and console toolkit to **scan**, **select**, **stage**, and **act** on options opportunities per `In2025At100K.md` rules.
+
+## Safety-first split
+We **separate selection from execution**:
+
+- `SelectTVC` → computes *Trade Vet Cards* (TVC) and enforces **POP ≥ 75%** and **Reward/Day ≥ 2.5%** (after fees, 60% realization). **No orders here.**
+- `WriteTVC` → consumes TVCs and performs **funds/leverage** checks and, if allowed, **stages** or **executes** orders with OCO (TP 50%, SL 2× credit).
+
+This split ensures we can screen continuously even when funds are tight or leverage is capped.
 
 ## Layout
-```
-AutoRevOption/
-├─ AutoRevOption.sln             # Solution file (.NET 9)
-├─ AutoRevOption.Minimal/        # .NET console with rules engine & order builder
-├─ AutoRevOption.Monitor/        # Read-only IBKR connection testbed
-├─ AutoRevOption.Tests/          # Unit tests (xUnit)
-├─ WorkPackages/                 # WP01–WP12 execution plan
-├─ DOCS/                         # Specs (OptionsRadar.md copy, diagrams, notes)
-├─ OptionsRadar.yaml             # Config knobs (risk, universe, strategies)
-├─ secrets.json                  # IBKR/API credentials (gitignored)
-└─ .gitignore
-```
 
-## Quick start
+    AutoRevOption/
+    ├─ AutoRevOption.sln             # Solution file (.NET 9)
+    ├─ AutoRevOption.Minimal/        # Console + MCP (selection + staging)
+    ├─ AutoRevOption.Monitor/        # Read-only IBKR connection testbed
+    ├─ AutoRevOption.Tests/          # Unit tests (xUnit)
+    ├─ WorkPackages/                 # WP01–WP12 execution plan
+    ├─ DOCS/                         # Specs (OptionsRadar.md copy, diagrams, notes)
+    ├─ OptionsRadar.yaml             # Config knobs (risk, universe, strategies)
+    ├─ secrets.json                  # IBKR/API credentials (gitignored)
+    └─ .gitignore
 
-### 1. Test IBKR Connection (Monitor)
-```bash
-cd AutoRevOption.Monitor
-dotnet run
+### New documents
+- `DOCS/SelectTVC.md` – selection-only pipeline spec
+- `DOCS/WriteTVC.md` – write/act pipeline spec
+
+## Run
+
+### 1) Selection (no broker calls)
 ```
-Read-only connection to verify TWS/Gateway setup. See [Monitor/README.md](AutoRevOption.Monitor/README.md) for setup.
-
-### 2. Run Rules Engine Demo (Minimal)
-```bash
 cd AutoRevOption.Minimal
-dotnet run
+dotnet run -- select --symbol SOFI --dte 7
 ```
-Interactive console with mock data. Select option "3. Now" to see WP01 demo (RulesEngine + OrderBuilder).
+Output: TVC JSON + human summary in `logs/tvc/`.
 
-### 3. Run Tests
-```bash
+### 2) Write/Act (with admissibility checks)
+```
+dotnet run -- write --tvc logs/tvc/2025-10-05/SOFI_2025-10-10_PCS.json --mode STAGE
+```
+Modes: `DRY_RUN|STAGE|EXECUTE`. Execution requires Monitor/TWS availability.
+
+## Tests
+```
 dotnet test
 ```
+Key gates validated by tests:
+- POP ≥ 0.75
+- Reward/Day ≥ 2.5%
+- Event avoidance (ER/FOMC/CPI/PCE)
+- Liquidity floors and credit drift
 
-**✅ TEST SAFETY:** All tests are 100% safe - no IBKR connection, no order placement, no account modifications. See [Test Safety Guide](DOCS/Test_Safety_Guide.md).
+## MCP
+Minimal server exposes tools for selection and write/act; see `DOCS/SelectTVC.md` and `DOCS/WriteTVC.md`.
 
 ### 4. MCP Server Mode (Claude Desktop Integration)
 

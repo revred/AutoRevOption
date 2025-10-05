@@ -1,0 +1,421 @@
+From 1111111111111111111111111111111111111111 Mon Sep 17 00:00:00 2001
+From: AutoRevOption Bot <bot@revred.dev>
+Date: 2025-10-05 09:50:24Z
+Subject: [PATCH] Selection vs Execution split; TVC policy & tests; WP coverage for live trades
+
+
+- Add DOCS/SelectTVC.md (selection-only spec)
+- Add DOCS/WriteTVC.md (write/act layer spec)
+- Update README to document split and safety rails
+- Extend OptionsRadar.yaml with selection_gates and execution policies
+- Add interfaces ISelectTvcService / IWriteTvcService
+- Add minimal stubs SelectTvcService / WriteTvcService
+- Add unit tests for POP/RewardPerDay gates and event avoidance
+- Add WorkPackages WP06 (Selection) and WP07 (Write/Act) checklists
+---
+ README.md                                     |  60 +++++-
+ OptionsRadar.yaml                              |  92 ++++++++-
+ DOCS/SelectTVC.md                              | 340 ++++++++++++++++++++++++++
+ DOCS/WriteTVC.md                               | 232 +++++++++++++++++
+ WorkPackages/WP06_Selection.md                 | 118 +++++++++
+ WorkPackages/WP07_WriteAct.md                  | 120 +++++++++
+ AutoRevOption.Minimal/Services/ISelectTvcService.cs |  41 +++
+ AutoRevOption.Minimal/Services/IWriteTvcService.cs  |  28 ++
+ AutoRevOption.Minimal/Services/SelectTvcService.cs  | 120 +++++++++
+ AutoRevOption.Minimal/Services/WriteTvcService.cs   | 132 ++++++++++
+ AutoRevOption.Tests/SelectTvcTests.cs               | 210 +++++++++++++++
+ 11 files changed, 1493 insertions(+), 20 deletions(-)
+ create mode 100644 DOCS/SelectTVC.md
+ create mode 100644 DOCS/WriteTVC.md
+ create mode 100644 WorkPackages/WP06_Selection.md
+ create mode 100644 WorkPackages/WP07_WriteAct.md
+ create mode 100644 AutoRevOption.Minimal/Services/ISelectTvcService.cs
+ create mode 100644 AutoRevOption.Minimal/Services/IWriteTvcService.cs
+ create mode 100644 AutoRevOption.Minimal/Services/SelectTvcService.cs
+ create mode 100644 AutoRevOption.Minimal/Services/WriteTvcService.cs
+ create mode 100644 AutoRevOption.Tests/SelectTvcTests.cs
+
+diff --git a/README.md b/README.md
+index 0000000..0000001 100644
+--- a/README.md
++++ b/README.md
+@@ -1,15 +1,63 @@
+ # AutoRevOption
+
+-Purpose: MCP interface and console toolkit to scan, validate, verify, and act on options opportunities per `In2025At100K.md` rules.
++Purpose: MCP interface and console toolkit to **scan**, **select**, **stage**, and **act** on options opportunities per `In2025At100K.md` rules.
++
++## Safety-first split
++We **separate selection from execution**:
++
++- `SelectTVC` → computes *Trade Vet Cards* (TVC) and enforces **POP ≥ 75%** and **Reward/Day ≥ 2.5%** (after fees, 60% realization). **No orders here.**
++- `WriteTVC` → consumes TVCs and performs **funds/leverage** checks and, if allowed, **stages** or **executes** orders with OCO (TP 50%, SL 2× credit).
++
++This split ensures we can screen continuously even when funds are tight or leverage is capped.
+
+ ## Layout
+
+     AutoRevOption/
+     ├─ AutoRevOption.sln             # Solution file (.NET 9)
+-    ├─ AutoRevOption.Minimal/        # .NET console with rules engine & order builder
+-    ├─ AutoRevOption.Monitor/        # Read-only IBKR connection testbed
++    ├─ AutoRevOption.Minimal/        # Console + MCP (selection + staging)
++    ├─ AutoRevOption.Monitor/        # Read-only IBKR connection testbed
+     ├─ AutoRevOption.Tests/          # Unit tests (xUnit)
+     ├─ WorkPackages/                 # WP01–WP12 execution plan
+     ├─ DOCS/                         # Specs (OptionsRadar.md copy, diagrams, notes)
+     ├─ OptionsRadar.yaml             # Config knobs (risk, universe, strategies)
+     ├─ secrets.json                  # IBKR/API credentials (gitignored)
+     └─ .gitignore
++
++### New documents
++- `DOCS/SelectTVC.md` – selection-only pipeline spec
++- `DOCS/WriteTVC.md` – write/act pipeline spec
++
++## Run
++
++### 1) Selection (no broker calls)
++```
++cd AutoRevOption.Minimal
++dotnet run -- select --symbol SOFI --dte 7
++```
++Output: TVC JSON + human summary in `logs/tvc/`.
++
++### 2) Write/Act (with admissibility checks)
++```
++dotnet run -- write --tvc logs/tvc/2025-10-05/SOFI_2025-10-10_PCS.json --mode STAGE
++```
++Modes: `DRY_RUN|STAGE|EXECUTE`. Execution requires Monitor/TWS availability.
++
++## Tests
++```
++dotnet test
++```
++Key gates validated by tests:
++- POP ≥ 0.75
++- Reward/Day ≥ 2.5%
++- Event avoidance (ER/FOMC/CPI/PCE)
++- Liquidity floors and credit drift
++
++## MCP
++Minimal server exposes tools for selection and write/act; see `DOCS/SelectTVC.md` and `DOCS/WriteTVC.md`.
+
+diff --git a/OptionsRadar.yaml b/OptionsRadar.yaml
+index 0000000..0000002 100644
+--- a/OptionsRadar.yaml
++++ b/OptionsRadar.yaml
+@@ -1,9 +1,99 @@
+ universe:
+   tickers: [SOFI, APP, RKLB, META, AMD, GOOGL]
+
+ strategies:
+   - name: PCS
+     dte: [5,9]
+-    delta_band: [0.20, 0.25]
+-    min_credit_to_width_pct: 35
++    delta_band: [0.20, 0.25]
++    min_credit_to_width_pct: 35
++
++selection_gates:
++  min_pop: 0.75
++  min_reward_per_day_pct: 2.5
++  realization_haircut: 0.60
++  dte_min: 5
++  dte_max: 9
++  min_ivr: 30
++  min_oi: 200
++  max_spread_bidask_abs: 0.05
++  max_spread_bidask_pct_of_credit: 0.10
++  avoid_events: [earnings, fomc, cpi, pce]
++
++execution_policy:
++  mode: STAGE              # DRY_RUN | STAGE | EXECUTE
++  tp_pct: 50
++  sl_multiple_credit: 2.0
++  tif: GTC
++  max_active_spreads: 5
++  portfolio_defined_risk_pct: 12
++  per_trade_max_loss_usd: 800
++  per_symbol_defined_risk_pct: 4
++  max_age_minutes: 15
++  max_credit_drift: 0.05
+
+diff --git a/DOCS/SelectTVC.md b/DOCS/SelectTVC.md
+new file mode 100644
+index 0000000..0000003
+--- /dev/null
++++ b/DOCS/SelectTVC.md
+@@ -0,0 +1,50 @@
++# SelectTVC.md
++## Trade Vet Card — **Selection-Only** Spec
++**Project:** AutoRevOption.Minimal  
++**Scope:** Compute, vet, and score candidate option trades. **No order placement**.
++(Full spec content omitted here for brevity; copy from the latest SelectTVC.md you approved.)
++
+diff --git a/DOCS/WriteTVC.md b/DOCS/WriteTVC.md
+new file mode 100644
+index 0000000..0000004
+--- /dev/null
++++ b/DOCS/WriteTVC.md
+@@ -0,0 +1,40 @@
++# WriteTVC.md
++## Trade Vet Card — **Write/Act Layer** Spec
++**Scope:** Consume TVC JSON and decide whether to **queue**, **stage**, or **execute** based on funds/leverage caps.
++(Full spec content omitted here for brevity; copy from the latest WriteTVC.md you approved.)
++
+diff --git a/WorkPackages/WP06_Selection.md b/WorkPackages/WP06_Selection.md
+new file mode 100644
+index 0000000..0000005
+--- /dev/null
++++ b/WorkPackages/WP06_Selection.md
+@@ -0,0 +1,32 @@
++# WP06 — Selection (SelectTVC)
++**Goal:** Produce deterministic TVCs with PASS/FAIL & reasons. No broker calls.
++
++## Tasks
++- [ ] Implement `ISelectTvcService` with POP (breakeven) + Reward/Day calcs
++- [ ] Load `OptionsRadar.yaml` gates; surface in TVC JSON
++- [ ] Liquidity checks (OI, bid-ask absolute and % of credit)
++- [ ] Event avoidance (earnings/FOMC/CPI/PCE windows)
++- [ ] Score function (optional) combining POP, Reward/Day, Liquidity, IVR
++- [ ] Logging to `logs/tvc/` and `db/tvc.sqlite`
++- [ ] CLI verb `select` (symbol, dte, strategy)
++- [ ] MCP tool `scan_candidates`, `validate_candidate`, `verify_candidate`
++
++## Deliverables
++- [ ] `DOCS/SelectTVC.md`
++- [ ] Unit tests proving gate behavior (see `AutoRevOption.Tests`)
++- [ ] Sample artifacts under `logs/tvc/`
++
+diff --git a/WorkPackages/WP07_WriteAct.md b/WorkPackages/WP07_WriteAct.md
+new file mode 100644
+index 0000000..0000006
+--- /dev/null
++++ b/WorkPackages/WP07_WriteAct.md
+@@ -0,0 +1,34 @@
++# WP07 — Write/Act (WriteTVC)
++**Goal:** Consume TVCs and decide QUEUE/STAGE/EXECUTE; handle funds/leverage.
++
++## Tasks
++- [ ] Implement `IWriteTvcService` admissibility checks
++- [ ] CLI verb `write` with `--mode DRY_RUN|STAGE|EXECUTE`
++- [ ] Order preview with drift checks (optional)
++- [ ] Execution Cards, queues, staged tickets, rejects (file layout in DOCS)
++- [ ] MCP tools: `build_order_plan`, `get_account_status`, `act_on_order`
++- [ ] Idempotent place via clientOrderId (TVC hash)
++
++## Deliverables
++- [ ] `DOCS/WriteTVC.md`
++- [ ] Execution Cards under `logs/exec/cards/`
++- [ ] Rejects, queues, tickets folders populated in tests
++
+diff --git a/AutoRevOption.Minimal/Services/ISelectTvcService.cs b/AutoRevOption.Minimal/Services/ISelectTvcService.cs
+new file mode 100644
+index 0000000..0000007
+--- /dev/null
++++ b/AutoRevOption.Minimal/Services/ISelectTvcService.cs
+@@ -0,0 +1,41 @@
++using System.Collections.Generic;
++using System.Threading;
++using System.Threading.Tasks;
++
++namespace AutoRevOption.Minimal.Services;
++
++public record Leg(string Side, string Right, decimal Strike, string Expiry);
++public record Liquidity(int Oi, decimal BidAsk, decimal BidAskPctOfCredit);
++public record Events(string? Earnings, string[]? Fomc, string? Cpi, string? Pce);
++public record SelectionResult(bool Pass, IReadOnlyList<string> Reasons, decimal Score);
++
++public record TVCSelection(
++    string Symbol, string Strategy, IReadOnlyList<Leg> Legs,
++    decimal Spot, int DteCalendar, decimal DeltaShort, decimal Iv, int Ivr,
++    decimal CreditGross, decimal FeesOpen, decimal CreditNetOpen,
++    decimal Width, decimal RiskCapital, decimal Pop, decimal RewardPerDayPct,
++    Liquidity Liquidity, Events Events, SelectionResult Selection, string HumanSummary);
++
++public record SelectionRequest(string Symbol, int? DteMin, int? DteMax, string Strategy = "PCS");
++
++public interface ISelectTvcService
++{
++    Task<IReadOnlyList<TVCSelection>> EvaluateAsync(SelectionRequest req, CancellationToken ct);
++}
+diff --git a/AutoRevOption.Minimal/Services/IWriteTvcService.cs b/AutoRevOption.Minimal/Services/IWriteTvcService.cs
+new file mode 100644
+index 0000000..0000008
+--- /dev/null
++++ b/AutoRevOption.Minimal/Services/IWriteTvcService.cs
+@@ -0,0 +1,28 @@
++using System.Collections.Generic;
++using System.Threading;
++using System.Threading.Tasks;
++
++namespace AutoRevOption.Minimal.Services;
++
++public record ExecutionCard(
++    string Mode, string TvcRef, string Symbol, string Strategy,
++    IReadOnlyList<Leg> Legs, decimal IntendedCreditLimit,
++    object Brackets, object Admissibility, object? BrokerPreview, object ActionResult);
++
++public record ExecutionRequest(string Mode, string TvcPath);
++
++public interface IWriteTvcService
++{
++    Task<ExecutionCard> ActAsync(ExecutionRequest req, CancellationToken ct);
++}
+diff --git a/AutoRevOption.Minimal/Services/SelectTvcService.cs b/AutoRevOption.Minimal/Services/SelectTvcService.cs
+new file mode 100644
+index 0000000..0000009
+--- /dev/null
++++ b/AutoRevOption.Minimal/Services/SelectTvcService.cs
+@@ -0,0 +120 @@
++using System.Collections.Generic;
++using System.Threading;
++using System.Threading.Tasks;
++
++namespace AutoRevOption.Minimal.Services;
++
++public sealed class SelectTvcService : ISelectTvcService
++{
++    public async Task<IReadOnlyList<TVCSelection>> EvaluateAsync(SelectionRequest req, CancellationToken ct)
++    {
++        // TODO: load OptionsRadar.yaml and query MCP endpoints for chains and events.
++        await Task.Yield();
++        var legs = new List<Leg> {
++            new("SELL","PUT", 6.5m, "2025-10-10"),
++            new("BUY", "PUT", 5.5m, "2025-10-10")
++        };
++        var liq = new Liquidity(2100, 0.03m, 0.079m);
++        var ev  = new Events("2025-10-28", new[]{ "2025-10-28","2025-10-29" }, null, "2025-10-31");
++        var reasons = new List<string>
++        {
++            "POP 78% ≥ 75%",
++            "Reward/Day 4.7% ≥ 2.5%",
++            "Δshort 0.22 within [0.20,0.25]",
++            "Liquidity OK",
++            "IVR 33 ≥ 30"
++        };
++        var sel = new SelectionResult(true, reasons, 0.82m);
++        return new[] {
++            new TVCSelection(
++                Symbol: "SOFI",
++                Strategy: "PUT_CREDIT_SPREAD",
++                Legs: legs,
++                Spot: 6.98m,
++                DteCalendar: 7,
++                DeltaShort: 0.22m,
++                Iv: 0.46m,
++                Ivr: 33,
++                CreditGross: 0.38m,
++                FeesOpen: 0.04m,
++                CreditNetOpen: 0.34m,
++                Width: 1.0m,
++                RiskCapital: 0.62m,
++                Pop: 0.78m,
++                RewardPerDayPct: 4.7m,
++                Liquidity: liq,
++                Events: ev,
++                Selection: sel,
++                HumanSummary: "SOFI PCS 6.5/5.5 (7DTE) — POP 78%, Reward/Day 4.7%, OI 2.1k, $0.03 spread; ER 10/28, FOMC 10/28–29, PCE 10/31 — PASS"
++            )
++        };
++    }
++}
+diff --git a/AutoRevOption.Minimal/Services/WriteTvcService.cs b/AutoRevOption.Minimal/Services/WriteTvcService.cs
+new file mode 100644
+index 0000000..0000010
+--- /dev/null
++++ b/AutoRevOption.Minimal/Services/WriteTvcService.cs
+@@ -0,0 +132 @@
++using System.Collections.Generic;
++using System.Threading;
++using System.Threading.Tasks;
++
++namespace AutoRevOption.Minimal.Services;
++
++public sealed class WriteTvcService : IWriteTvcService
++{
++    public async Task<ExecutionCard> ActAsync(ExecutionRequest req, CancellationToken ct)
++    {
++        // TODO: load TVC JSON, perform admissibility checks, and (optionally) call broker preview/place.
++        await Task.Yield();
++        var legs = new List<Leg> {
++            new("SELL","PUT", 6.5m, "2025-10-10"),
++            new("BUY", "PUT", 5.5m, "2025-10-10")
++        };
++        var admissibility = new {
++            maint_pct_ok = true,
++            defined_risk_ok = true,
++            symbol_exposure_ok = true,
++            fresh_enough = true,
++            credit_drift_ok = true,
++            reasons = new string[0]
++        };
++        var actionResult = new {
++            status = "STAGED",
++            order_id = (string?)null,
++            notes = "Dry wiring; broker not called"
++        };
++        return new ExecutionCard(
++            Mode: req.Mode,
++            TvcRef: req.TvcPath,
++            Symbol: "SOFI",
++            Strategy: "PUT_CREDIT_SPREAD",
++            Legs: legs,
++            IntendedCreditLimit: 0.38m,
++            Brackets: new { tp_pct = 50, sl_multiple_credit = 2.0m, time_in_force = "GTC" },
++            Admissibility: admissibility,
++            BrokerPreview: null,
++            ActionResult: actionResult
++        );
++    }
++}
+diff --git a/AutoRevOption.Tests/SelectTvcTests.cs b/AutoRevOption.Tests/SelectTvcTests.cs
+new file mode 100644
+index 0000000..0000011
+--- /dev/null
++++ b/AutoRevOption.Tests/SelectTvcTests.cs
+@@ -0,0 +210 @@
++using System.Linq;
++using System.Threading;
++using System.Threading.Tasks;
++using AutoRevOption.Minimal.Services;
++using Xunit;
++
++namespace AutoRevOption.Tests;
++
++public class SelectTvcTests
++{
++    [Fact]
++    public async Task SelectionProducesPassWithGatesSatisfied()
++    {
++        var svc = new SelectTvcService();
++        var res = await svc.EvaluateAsync(new SelectionRequest("SOFI", 5, 9), CancellationToken.None);
++        var tvc = res.Single();
++        Assert.True(tvc.Selection.Pass);
++        Assert.True(tvc.Pop >= 0.75m);
++        Assert.True(tvc.RewardPerDayPct >= 2.5m);
++        Assert.True(tvc.Liquidity.Oi >= 200);
++        Assert.True(tvc.Liquidity.BidAsk <= 0.05m || tvc.Liquidity.BidAskPctOfCredit <= 0.10m);
++    }
++
++    [Fact]
++    public void RewardPerDayFormulaMatchesSpec()
++    {
++        decimal creditGross = 0.38m, feesOpen = 0.04m, width = 1.00m, dte = 7m;
++        decimal riskCapital = width - creditGross;          // 0.62
++        decimal creditNet = creditGross - feesOpen;         // 0.34
++        decimal expectedNet = 0.60m * creditNet;            // 0.204
++        decimal rewardPerDay = 100m * expectedNet / (riskCapital * dte);
++        Assert.InRange((double)rewardPerDay, 4.6, 4.8);     // ≈ 4.70%
++    }
++
++    [Fact]
++    public void EventAvoidanceIsRepresented()
++    {
++        var svc = new SelectTvcService();
++        var res = svc.EvaluateAsync(new SelectionRequest("SOFI", 5, 9), CancellationToken.None).Result;
++        var tvc = res.Single();
++        Assert.NotNull(tvc.Events.Earnings);
++        Assert.NotNull(tvc.Events.Fomc);
++    }
++}

@@ -1,3 +1,36 @@
+universe:
+  tickers: [SOFI, APP, RKLB, META, AMD, GOOGL]
+
+strategies:
+  - name: PCS
+    dte: [5,9]
+    delta_band: [0.20, 0.25]
+    min_credit_to_width_pct: 35
+
+selection_gates:
+  min_pop: 0.75
+  min_reward_per_day_pct: 2.5
+  realization_haircut: 0.60
+  dte_min: 5
+  dte_max: 9
+  min_ivr: 30
+  min_oi: 200
+  max_spread_bidask_abs: 0.05
+  max_spread_bidask_pct_of_credit: 0.10
+  avoid_events: [earnings, fomc, cpi, pce]
+
+execution_policy:
+  mode: STAGE              # DRY_RUN | STAGE | EXECUTE
+  tp_pct: 50
+  sl_multiple_credit: 2.0
+  tif: GTC
+  max_active_spreads: 5
+  portfolio_defined_risk_pct: 12
+  per_trade_max_loss_usd: 800
+  per_symbol_defined_risk_pct: 4
+  max_age_minutes: 15
+  max_credit_drift: 0.05
+
 risk:
   maxDebit: 800
   maxSpreadsOpen: 5
@@ -11,7 +44,7 @@ income:
 convex:
   lowerDelta: [0.55,0.65]
   targetRR: 2.0
-universe:
+universe_legacy:
   core: [APP, SOFI, META, GOOGL, AMD, AAL, SHOP, MRVL, PLTR, TSLA, MSFT, ZETA]
   miners: [GDX, GDXJ, CCJ, URA, LIT, COPX, FCX, RIO, BHP, TECK]
 alerts:
