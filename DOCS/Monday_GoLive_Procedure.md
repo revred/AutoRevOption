@@ -70,33 +70,35 @@ netstat -ano | findstr :4001 | findstr LISTENING
 **Command:**
 ```bash
 cd /c/Code/AutoRevOption
-dotnet run --project AutoRevOption.Tests/uProbe
+timeout 15 dotnet run --project AutoRevOption.Monitor/AutoRevOption.Monitor.csproj
 ```
 
 **Expected Output (Success):**
 ```
-uProbe — IBKR Gateway Handshake Test
-Attempting: 127.0.0.1:4001 clientId=10
+AutoRevOption.Monitor — IBKR Read-Only Connection
 
-[1/5] Calling eConnect()...
-✅ eConnect() completed, IsConnected=true (50ms)
-[2/5] Starting EReader...
-[3/5] Starting message processing thread...
-[4/5] Calling startApi()... ⚡ CRITICAL STEP
-[5/5] Waiting for nextValidId (10s timeout)...
-[12:34:56.789] ✅ connectAck()
-[12:34:56.792] ✅ nextValidId(1)
-[12:34:56.795] managedAccounts(U21146542)
+✅ Loaded secrets from C:\Code\AutoRevOption\..\secrets.json
+   Host: 127.0.0.1:4001
+   ClientId: 10
 
-✅ SUCCESS in 105ms
-   connectAck: True
-   nextValidId: True
+✅ Running (port 4001 open)
+
+[Gateway] Checking IB Gateway status...
+[Gateway] ✅ IB Gateway is already running
+[IBKR] Connecting to 127.0.0.1:4001 (ClientId: 10)...
+[IBKR] eConnect() completed. IsConnected: True
+[IBKR] EReader started, launching message processing thread...
+[IBKR] startApi() called - requesting handshake
+[IBKR] ✅ Connected successfully
+
+Retrieved 24 positions for account U21146542
+✅ Position data available via MCP tools
 ```
 
-**Exit Codes:**
-- `0` = Success → proceed to Monitor
-- `1` = eConnect() failed → check Gateway is running
-- `2` = Timeout → see troubleshooting below
+**Success Indicators:**
+- "✅ Connected successfully" appears within 2 seconds
+- "Retrieved 24 positions" appears
+- Process continues running (don't kill it - this IS the Monitor)
 
 ###If Timeout (Exit Code 2)
 
