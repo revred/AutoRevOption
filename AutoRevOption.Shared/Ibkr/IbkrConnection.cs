@@ -50,6 +50,7 @@ public class IbkrConnection : EWrapper
     private readonly ConcurrentDictionary<string, PositionInfo> _positions = new();
     private readonly ManualResetEvent _accountUpdateComplete = new(false);
     private readonly ManualResetEvent _positionsComplete = new(false);
+    private readonly ManualResetEvent _connectionComplete = new(false);
 
     public IbkrConnection(IBKRCredentials credentials)
     {
@@ -66,21 +67,10 @@ public class IbkrConnection : EWrapper
     {
         Console.WriteLine($"[IBKR] Connecting to {_credentials.Host}:{_credentials.Port} (ClientId: {_credentials.ClientId})...");
 
+        _connectionComplete.Reset();
         _client.eConnect(_credentials.Host, _credentials.Port, _credentials.ClientId);
 
-        // Wait for connection
-        await Task.Delay(1000);
-
-        if (!_client.IsConnected())
-        {
-            Console.WriteLine("[IBKR] ❌ Failed to connect");
-            return false;
-        }
-
-        _isConnected = true;
-        Console.WriteLine("[IBKR] ✅ Connected successfully");
-
-        // Start message processing thread
+        // Start message processing thread immediately
         var reader = new EReader(_client, _signal);
         reader.Start();
 
@@ -93,6 +83,17 @@ public class IbkrConnection : EWrapper
             }
         });
 
+        // Wait for connection acknowledgment (with timeout)
+        var connected = await Task.Run(() => _connectionComplete.WaitOne(10000));
+
+        if (!connected || !_client.IsConnected())
+        {
+            Console.WriteLine("[IBKR] ❌ Failed to connect (timeout or connection refused)");
+            return false;
+        }
+
+        _isConnected = true;
+        Console.WriteLine("[IBKR] ✅ Connected successfully");
         return true;
     }
 
@@ -172,22 +173,28 @@ public class IbkrConnection : EWrapper
     public void connectAck()
     {
         Console.WriteLine("[IBKR] Connection acknowledged");
+        _connectionComplete.Set();
     }
 
     public void error(int id, int errorCode, string errorMsg, string advancedOrderRejectJson)
     {
+        // Always log all errors during connection debugging
+        Console.WriteLine($"[IBKR] Error/Info [{errorCode}]: {errorMsg}");
+
         // Filter out informational messages
         if (errorCode == 2104 || errorCode == 2106 || errorCode == 2158)
         {
-            Console.WriteLine($"[IBKR] Info: {errorMsg}");
+            // Connection success indicators
+            _connectionComplete.Set();
         }
         else if (errorCode >= 2000 && errorCode < 3000)
         {
-            Console.WriteLine($"[IBKR] Warning [{errorCode}]: {errorMsg}");
+            // Warnings
         }
-        else
+        else if (errorCode == 502 || errorCode == 503 || errorCode == 504)
         {
-            Console.WriteLine($"[IBKR] Error [{errorCode}]: {errorMsg}");
+            // Connection errors
+            Console.WriteLine($"[IBKR] ❌ Connection error: {errorMsg}");
         }
     }
 
@@ -295,7 +302,12 @@ public class IbkrConnection : EWrapper
     #region EWrapper Implementation - Required but Unused
 
     public void currentTime(long time) { }
-    public void nextValidId(int orderId) { _nextRequestId = orderId; }
+    public void nextValidId(int orderId)
+    {
+        _nextRequestId = orderId;
+        _connectionComplete.Set();
+        Console.WriteLine($"[IBKR] Next valid order ID: {orderId}");
+    }
     public void managedAccounts(string accountsList)
     {
         Console.WriteLine($"[IBKR] Managed accounts: {accountsList}");
