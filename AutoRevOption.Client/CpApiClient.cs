@@ -4,7 +4,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using AutoRevOption.Shared.Configuration;
 
-namespace AutoRevOption.CpApi;
+namespace AutoRevOption.Client;
 
 /// <summary>
 /// Client for IBKR Client Portal Gateway REST API
