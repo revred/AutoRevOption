@@ -991,3 +991,92 @@ TCP    127.0.0.1:56334        127.0.0.1:4001         ESTABLISHED (orphaned)
 - Patience!
 
 **Current State:** Gateway WAS accepting connections but our approach was wrong
+
+---
+
+## REGRESSION - CLOSE_WAIT Zombie Sockets Block Connections
+
+**Date:** 2025-10-05 (Post-session continuation)
+
+**New Finding:** Connection failures are caused by CLOSE_WAIT zombie sockets, not just timing
+
+### Root Cause: Socket State Pollution
+
+**Evidence:** Even with clean process state and 60s Gateway initialization wait, connections still fail due to accumulated CLOSE_WAIT sockets:
+
+```bash
+$ netstat -ano | findstr :4001 | findstr 127.0.0.1
+TCP    127.0.0.1:4001         127.0.0.1:63650        CLOSE_WAIT      18684
+TCP    127.0.0.1:4001         127.0.0.1:63651        CLOSE_WAIT      18684
+TCP    127.0.0.1:4001         127.0.0.1:63652        CLOSE_WAIT      18684
+TCP    127.0.0.1:4001         127.0.0.1:63653        CLOSE_WAIT      18684
+TCP    127.0.0.1:63650        127.0.0.1:4001         FIN_WAIT_2      13144
+```
+
+**What this means:**
+- Gateway (PID 18684) holds 4 sockets in CLOSE_WAIT state
+- Client closed connections but Gateway never sent FIN-ACK
+- These zombie sockets persist indefinitely until Gateway restart
+- Each CLOSE_WAIT socket consumes a connection slot
+- When limit reached, new eConnect() calls block forever
+
+**Why Process Control Alone Doesn't Fix It:**
+1. ✅ Killed all dotnet.exe processes
+2. ✅ Verified no background bash shells
+3. ✅ Gateway initialization wait completed (60s)
+4. ❌ **Still failed** - CLOSE_WAIT sockets from previous session blocking new connections
+
+**Definitive Test Result:**
+- Pre-flight: All processes killed, 60s wait complete
+- Connection attempt: Hung at "Connecting to 127.0.0.1:4001"
+- Socket check during hang: 4 CLOSE_WAIT sockets present
+- Conclusion: **Zombie sockets are the blocker, not timing alone**
+
+### The Real Fix: CLOSE_WAIT Detection and Gateway Restart
+
+**Updated Procedure:**
+1. Kill all dotnet processes: `taskkill //F //IM dotnet.exe`
+2. **Check for CLOSE_WAIT zombies:** `netstat -ano | findstr :4001 | findstr CLOSE_WAIT`
+3. **If ANY CLOSE_WAIT detected → MUST restart Gateway** (they won't clear otherwise)
+4. Wait 60s after Gateway UI shows connected
+5. Single connection attempt with ClientId 10
+6. Post-connection verification: Check for new CLOSE_WAIT sockets
+
+**Key Insight:**
+- CLOSE_WAIT sockets are NOT cleared by process termination
+- CLOSE_WAIT sockets are NOT cleared by timeout
+- CLOSE_WAIT sockets ONLY clear on Gateway restart
+- **Each failed connection attempt can create a CLOSE_WAIT zombie**
+
+### Automation: Pre-Flight Validation Script
+
+Created `scripts/connect-gateway.sh` that:
+1. ✅ Terminates all dotnet processes
+2. ✅ Detects CLOSE_WAIT zombie sockets
+3. ✅ **Fails fast** if zombies detected (instructs user to restart Gateway)
+4. ✅ Verifies Gateway is listening
+5. ✅ Single controlled connection attempt with timeout
+6. ✅ Post-connection socket state verification
+7. ✅ Detects if the attempt created new zombies
+
+**Documented in:** `docs/Gateway_Connection_Procedure.md`
+
+### Accountability
+
+**Mistakes Made:**
+1. Created 13+ uncontrolled background processes during debugging
+2. Failed to properly terminate processes between attempts
+3. Complained about connection issues caused by my own zombie processes
+4. Attempted connections without pre-validating socket state
+
+**Lessons:**
+1. **We control zombie processes** - every background process must be tracked
+2. **Socket state matters** - CLOSE_WAIT detection is mandatory pre-flight check
+3. **Connection attempts are NOT idempotent** - each failure leaves pollution
+4. **Gateway restart is sometimes required** - when CLOSE_WAIT detected, no other fix works
+
+**Next Steps:**
+1. User to restart IB Gateway to clear CLOSE_WAIT zombies
+2. Run `scripts/connect-gateway.sh` for controlled connection attempt
+3. If successful, positions will be retrieved
+4. If fails, script will identify exact failure mode (timing vs zombie sockets)

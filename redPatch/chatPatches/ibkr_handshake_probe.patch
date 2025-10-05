@@ -1,0 +1,239 @@
+*** Begin Patch
+*** Add File: AutoRevOption.HandshakeProbe/AutoRevOption.HandshakeProbe.csproj
++<Project Sdk="Microsoft.NET.Sdk">
++  <PropertyGroup>
++    <OutputType>Exe</OutputType>
++    <TargetFramework>net8.0</TargetFramework>
++    <ImplicitUsings>enable</ImplicitUsings>
++    <Nullable>enable</Nullable>
++  </PropertyGroup>
++  <ItemGroup>
++    <PackageReference Include="IBApi" Version="10.19.2" />
++  </ItemGroup>
++</Project>
++
+*** End Patch
+*** Begin Patch
+*** Add File: AutoRevOption.HandshakeProbe/Program.cs
++using System.Text;
++using IBApi;
++
++namespace AutoRevOption.HandshakeProbe;
++
++public class ProbeWrapper : EWrapper
++{
++    private readonly ManualResetEvent _connected = new(false);
++    private readonly ManualResetEvent _failed = new(false);
++    private readonly object _lock = new();
++
++    public bool GotNextValidId { get; private set; }
++    public bool GotConnectAck { get; private set; }
++    public List<string> Events { get; } = new();
++
++    private void Log(string msg)
++    {
++        lock (_lock)
++        {
++            var line = $"[{DateTime.Now:HH:mm:ss.fff}] {msg}";
++            Events.Add(line);
++            Console.WriteLine(line);
++        }
++    }
++
++    // ---- Minimal event surface to track handshake ----
++    public void connectAck() { GotConnectAck = true; Log("connectAck()"); }
++    public void nextValidId(int orderId) { GotNextValidId = true; Log($"nextValidId({orderId})"); _connected.Set(); }
++    public void error(Exception e) { Log($"error(Exception): {e.Message}"); _failed.Set(); }
++    public void error(string str) { Log($"error(string): {str}"); }
++    public void error(int id, int code, string msg) { Log($"error({id}, {code}): {msg}"); if (code >= 500 || code == 504) _failed.Set(); }
++
++    // Unused members (no-ops)
++    public void currentTime(long time) { Log($"currentTime({time})"); }
++    public void managedAccounts(string accountsList) { Log($"managedAccounts({accountsList})"); }
++    public void connectionClosed() { Log("connectionClosed()"); }
++
++    // Stub everything else to satisfy interface (keep binary size tiny)
++#pragma warning disable 67
++    public event Action? OnLog; // placeholder hook
++#pragma warning restore 67
++
++    // EWrapper extensive surface — implement as empty to compile/run
++    // NOTE: We intentionally keep stubs compact; IBApi requires full surface but we don't need behavior.
++    public void tickPrice(int tickerId, int field, double price, TickAttrib attribs) { }
++    public void tickSize(int tickerId, int field, int size) { }
++    public void tickOptionComputation(int tickerId, int field, double impliedVol, double delta, double optPrice, double pvDividend, double gamma, double vega, double theta, double undPrice) { }
++    public void tickGeneric(int tickerId, int field, double value) { }
++    public void tickString(int tickerId, int field, string value) { }
++    public void tickEFP(int tickerId, int tickType, double basisPoints, string formattedBasisPoints, double totalDividends, int holdDays, string futureExpiry, double dividendImpact, double dividendsToExpiry) { }
++    public void orderStatus(int orderId, string status, double filled, double remaining, double avgFillPrice, int permId, int parentId, double lastFillPrice, int clientId, string whyHeld, double mktCapPrice) { }
++    public void openOrder(int orderId, Contract contract, Order order, OrderState orderState) { }
++    public void openOrderEnd() { }
++    public void updateAccountValue(string key, string value, string currency, string accountName) { }
++    public void updatePortfolio(Contract contract, double position, double marketPrice, double marketValue, double averageCost, double unrealizedPNL, double realizedPNL, string accountName) { }
++    public void updateAccountTime(string timestamp) { }
++    public void accountDownloadEnd(string account) { }
++    public void contractDetails(int reqId, ContractDetails contractDetails) { }
++    public void contractDetailsEnd(int reqId) { }
++    public void bondContractDetails(int reqId, ContractDetails contractDetails) { }
++    public void execDetails(int reqId, Contract contract, Execution execution) { }
++    public void execDetailsEnd(int reqId) { }
++    public void updateMktDepth(int id, int position, int operation, int side, double price, int size) { }
++    public void updateMktDepthL2(int id, int position, string marketMaker, int operation, int side, double price, int size, bool isSmartDepth) { }
++    public void updateNewsBulletin(int msgId, int msgType, string message, string origExchange) { }
++    public void managedAccounts(string accountsList, string accountAlias) { }
++    public void receiveFA(int faDataType, string faXmlData) { }
++    public void historicalData(int reqId, Bar bar) { }
++    public void historicalDataEnd(int reqId, string start, string end) { }
++    public void scannerParameters(string xml) { }
++    public void scannerData(int reqId, int rank, ContractDetails contractDetails, string distance, string benchmark, string projection, string legsStr) { }
++    public void scannerDataEnd(int reqId) { }
++    public void realtimeBar(int reqId, long time, double open, double high, double low, double close, long volume, double wap, int count) { }
++    public void fundamentalData(int reqId, string data) { }
++    public void deltaNeutralValidation(int reqId, DeltaNeutralContract deltaNeutralContract) { }
++    public void tickSnapshotEnd(int reqId) { }
++    public void marketDataType(int reqId, int marketDataType) { }
++    public void commissionReport(CommissionReport commissionReport) { }
++    public void position(string account, Contract contract, double pos, double avgCost) { }
++    public void positionEnd() { }
++    public void accountSummary(int reqId, string account, string tag, string value, string currency) { }
++    public void accountSummaryEnd(int reqId) { }
++    public void verifyMessageAPI(string apiData) { }
++    public void verifyCompleted(bool isSuccessful, string errorText) { }
++    public void displayGroupList(int reqId, string groups) { }
++    public void displayGroupUpdated(int reqId, string contractInfo) { }
++    public void verifyAndAuthMessageAPI(string apiData, string xyzChallenge) { }
++    public void verifyAndAuthCompleted(bool isSuccessful, string errorText) { }
++    public void connectCompletion() { }
++    public void positionMulti(int reqId, string account, string modelCode, Contract contract, double pos, double avgCost) { }
++    public void positionMultiEnd(int reqId) { }
++    public void accountUpdateMulti(int reqId, string account, string modelCode, string key, string value, string currency) { }
++    public void accountUpdateMultiEnd(int reqId) { }
++    public void securityDefinitionOptionalParameter(int reqId, string exchange, int underlyingConId, string tradingClass, string multiplier, HashSet<string> expirations, HashSet<double> strikes) { }
++    public void securityDefinitionOptionalParameterEnd(int reqId) { }
++    public void softDollarTiers(int reqId, SoftDollarTier[] tiers) { }
++    public void familyCodes(FamilyCode[] familyCodes) { }
++    public void symbolSamples(int reqId, ContractDescription[] contractDescriptions) { }
++    public void mktDepthExchanges(DepthMktDataDescription[] depthMktDataDescriptions) { }
++    public void tickNews(int tickerId, long timeStamp, string providerCode, string articleId, string headline, string extraData) { }
++    public void smartComponents(int reqId, Dictionary<int, KeyValuePair<string, char>> theMap) { }
++    public void tickReqParams(int tickerId, double minTick, string bboExchange, int snapshotPermissions) { }
++    public void newsProviders(NewsProvider[] newsProviders) { }
++    public void newsArticle(int requestId, int articleType, string articleText) { }
++    public void historicalNews(int requestId, string time, string providerCode, string articleId, string headline) { }
++    public void historicalNewsEnd(int requestId, bool hasMore) { }
++    public void rerouteMktDataReq(int reqId, int conId, string exchange) { }
++    public void rerouteMktDepthReq(int reqId, int conId, string exchange) { }
++    public void headTimestamp(int reqId, string headTimestamp) { }
++    public void histogramData(int reqId, HistogramEntry[] data) { }
++    public void historicalDataUpdate(int reqId, Bar bar) { }
++    public void rerouteCFDReq(int reqId, string exchange) { }
++    public void marketRule(int marketRuleId, PriceIncrement[] priceIncrements) { }
++    public void pnl(int reqId, double dailyPnL, double unrealizedPnL, double realizedPnL) { }
++    public void pnlSingle(int reqId, double pos, double dailyPnL, double unrealizedPnL, double realizedPnL, double value) { }
++    public void historicalTicks(int reqId, HistoricalTick[] ticks, bool done) { }
++    public void historicalTicksBidAsk(int reqId, HistoricalTickBidAsk[] ticks, bool done) { }
++    public void historicalTicksLast(int reqId, HistoricalTickLast[] ticks, bool done) { }
++    public void tickByTickAllLast(int reqId, int tickType, long time, double price, int size, TickAttribLast tickAttribLast, string exchange, string specialConditions) { }
++    public void tickByTickBidAsk(int reqId, long time, double bidPrice, double askPrice, int bidSize, int askSize, TickAttribBidAsk tickAttribBidAsk) { }
++    public void tickByTickMidPoint(int reqId, long time, double midPoint) { }
++    public void orderBound(long orderId, int apiClientId, int apiOrderId) { }
++    public void completedOrder(Contract contract, Order order, OrderState orderState) { }
++    public void completedOrdersEnd() { }
++    public void replaceFAEnd(int reqId, string text) { }
++    public void wshMetaData(int reqId, string dataJson) { }
++    public void wshEventData(int reqId, string dataJson) { }
++    public void historicalSchedule(int reqId, string startDateTime, string endDateTime, string timeZone, HistoricalSession[] sessions) { }
++    public void userInfo(int reqId, string whiteBrandingId) { }
++}
++
++internal static class Program
++{
++    private static async Task<int> Attempt(string host, int port, int clientId, string? connectOptions)
++    {
++        Console.WriteLine($"--- Attempt: host={host} port={port} clientId={clientId} options='{connectOptions ?? ""}' ---");
++
++        var signal = new EReaderMonitorSignal();
++        var wrapper = new ProbeWrapper();
++        var client = new EClientSocket(wrapper, signal);
++
++        if (!string.IsNullOrWhiteSpace(connectOptions))
++            client.SetConnectOptions(connectOptions);
++
++        var sw = System.Diagnostics.Stopwatch.StartNew();
++        try
++        {
++            client.eConnect(host, port, clientId, false);
++        }
++        catch (Exception ex)
++        {
++            Console.WriteLine($"eConnect threw: {ex.Message}");
++            return 1;
++        }
++
++        var reader = new EReader(client, signal);
++        reader.Start();
++
++        _ = Task.Run(() =>
++        {
++            while (client.IsConnected())
++            {
++                signal.waitForSignal();
++                reader.processMsgs();
++            }
++        });
++
++        // start API and wait for nextValidId within timeout
++        client.startApi();
++
++        var ok = await Task.Run(() => wrapper.GotNextValidId || wrapper.GotConnectAck)
++            .WaitAsync(TimeSpan.FromSeconds(10))
++            .ContinueWith(t => t.Status == TaskStatus.RanToCompletion && (wrapper.GotNextValidId || wrapper.GotConnectAck));
++
++        sw.Stop();
++        Console.WriteLine($"Result: {(ok ? "✅ SUCCESS" : "❌ TIMEOUT")} in {sw.Elapsed.TotalMilliseconds:F0} ms");
++        if (client.IsConnected()) client.eDisconnect();
++        return ok ? 0 : 2;
++    }
++
++    public static async Task<int> Main(string[] args)
++    {
++        string host = args.FirstOrDefault(a => a.StartsWith("--host="))?.Split('=')[1] ?? "127.0.0.1";
++        int port = int.TryParse(args.FirstOrDefault(a => a.StartsWith("--port="))?.Split('=')[1], out var p) ? p : 4001;
++        int clientId = int.TryParse(args.FirstOrDefault(a => a.StartsWith("--id="))?.Split('=')[1], out var c) ? c : 10;
++        bool trySsl = args.Any(a => a == "--try-ssl");
++
++        Console.WriteLine("IBKR Handshake Probe — attempts plain, then optional UseSSL=1");
++        var rc1 = await Attempt(host, port, clientId, null);
++        int rc2 = 0;
++        if (trySsl) rc2 = await Attempt(host, port, clientId, "UseSSL=1");
++
++        return rc1 == 0 || rc2 == 0 ? 0 : 2;
++    }
++}
++
+*** End Patch
+*** Begin Patch
+*** Add File: scripts/handshake-probe.sh
++#!/usr/bin/env bash
++set -euo pipefail
++ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
++pushd "$ROOT/AutoRevOption.HandshakeProbe" >/dev/null
++dotnet build -c Release
++dotnet run -c Release -- --host=127.0.0.1 --port="${1:-4001}" --id="${2:-10}" --try-ssl
++popd >/dev/null
++
+*** End Patch
+*** Begin Patch
+*** Add File: scripts/handshake-probe.ps1
++Param(
++  [int]$Port = 4001,
++  [int]$ClientId = 10
++)
++$root = Split-Path -Parent $MyInvocation.MyCommand.Path
++$root = Join-Path $root ".."
++Push-Location (Join-Path $root "AutoRevOption.HandshakeProbe")
++dotnet build -c Release | Out-Null
++dotnet run -c Release -- --host=127.0.0.1 --port=$Port --id=$ClientId --try-ssl
++Pop-Location
++
+*** End Patch
