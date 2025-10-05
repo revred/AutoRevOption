@@ -6,4 +6,17 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
 
+  <ItemGroup>
+    <PackageReference Include="YamlDotNet" Version="16.2.0" />
+    <PackageReference Include="System.Text.Json" Version="8.0.5" />
+    <PackageReference Include="Google.Protobuf" Version="3.30.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Reference to IBKR TWS API C# Client -->
+    <Reference Include="CSharpAPI">
+      <HintPath>C:\IBKR\TWS_API\source\CSharpClient\client\bin\Release\netstandard2.0\CSharpAPI.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+
 </Project>

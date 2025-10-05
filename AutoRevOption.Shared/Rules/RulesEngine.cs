@@ -1,10 +1,10 @@
-// RulesEngine.cs — Parse OptionsRadar.yaml and enforce strategy policies (WP01)
+// RulesEngine.cs — Parse OptionsRadar.yaml and enforce strategy policies
 
 using YamlDotNet.Serialization;
 using YamlDotNet.Serialization.NamingConventions;
 using AutoRevOption.Shared.Prime.Models;
 
-namespace AutoRevOption;
+namespace AutoRevOption.Shared.Rules;
 
 // YAML configuration structure
 public class OptionsRadarConfig

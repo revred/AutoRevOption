@@ -10,6 +10,7 @@
 
 using AutoRevOption;
 using AutoRevOption.Shared.Prime.Models;
+using AutoRevOption.Shared.Rules;
 using Xunit;
 
 namespace AutoRevOption.Tests;

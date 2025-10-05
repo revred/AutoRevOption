@@ -4,7 +4,7 @@ using IBApi;
 using System.Collections.Concurrent;
 using AutoRevOption.Shared.Configuration;
 
-namespace AutoRevOption.Monitor;
+namespace AutoRevOption.Shared.Ibkr;
 
 public class AccountInfo
 {
@@ -312,7 +312,7 @@ public class IbkrConnection : EWrapper
     public void orderStatus(int orderId, string status, decimal filled, decimal remaining, double avgFillPrice, long permId, int parentId, double lastFillPrice, int clientId, string whyHeld, double mktCapPrice) { }
     public void openOrder(int orderId, Contract contract, Order order, OrderState orderState) { }
     public void openOrderEnd() { }
-    public void execDetails(int reqId, Contract contract, Execution execution) { }
+    public void execDetails(int reqId, Contract contract, IBApi.Execution execution) { }
     public void execDetailsEnd(int reqId) { }
     // CommissionReport removed in newer API - use commissionAndFeesReport instead
     public void commissionAndFeesReport(CommissionAndFeesReport commissionAndFeesReport) { }

@@ -1,9 +1,9 @@
-// OrderBuilder.cs — Build combo orders with OCA exit brackets (WP01)
+// OrderBuilder.cs — Build combo orders with OCA exit brackets
 
 using System.Text.Json;
 using AutoRevOption.Shared.Prime.Models;
 
-namespace AutoRevOption;
+namespace AutoRevOption.Shared.Execution;
 
 public record ExitPolicy(decimal TpMinPct, decimal TpMaxPct, decimal SlMultiplier);
 public record OrderRequest(string Route, string TifEntry, string TifExit, List<OptionLeg> Legs, int Quantity);

@@ -7,6 +7,8 @@ using System.Text.Json;
 using System.Text.RegularExpressions;
 using AutoRevOption;
 using AutoRevOption.Shared.Prime.Models;
+using AutoRevOption.Shared.Rules;
+using AutoRevOption.Shared.Execution;
 
 #pragma warning disable CS8618
 
