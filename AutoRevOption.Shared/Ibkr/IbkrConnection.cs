@@ -96,6 +96,10 @@ public class IbkrConnection : EWrapper
             Console.WriteLine("[IBKR] Message processing thread exited");
         });
 
+        // ⚠️ CRITICAL: Start the API to trigger handshake callbacks
+        _client.startApi();
+        Console.WriteLine("[IBKR] startApi() called - requesting handshake");
+
         // Wait for connection acknowledgment (with timeout)
         Console.WriteLine("[IBKR] Waiting for connection acknowledgment (10s timeout)...");
         var connected = await Task.Run(() => _connectionComplete.WaitOne(10000));
