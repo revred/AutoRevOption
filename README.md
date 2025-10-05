@@ -24,8 +24,9 @@ This split ensures we can screen continuously even when funds are tight or lever
     └─ .gitignore
 
 ### Key Documents
-- `DOCS/SelectTVC.md` – selection-only pipeline spec
-- `DOCS/WriteTVC.md` – write/act pipeline spec
+- `docs/SelectTVC.md` – selection-only pipeline spec
+- `docs/WriteTVC.md` – write/act pipeline spec
+- `docs/PlotGateway.md` – IB Gateway connection troubleshooting & resolution
 - `WorkPackages/WP05_MondayReadiness.md` – **operational end-to-end plan** for Monday trading
 
 ## Run
@@ -80,7 +81,7 @@ dotnet run -- --mcp
 ```
 Exposes 6 tools: get_connection_status, get_account_summary, get_positions, get_option_positions, get_account_greeks, check_gateway
 
-See [DOCS/MCP_Setup.md](DOCS/MCP_Setup.md) and [DOCS/Monitor_MCP_Setup.md](DOCS/Monitor_MCP_Setup.md) for Claude Desktop integration.
+See [docs/MCP_Setup.md](docs/MCP_Setup.md) and [docs/Monitor_MCP_Setup.md](docs/Monitor_MCP_Setup.md) for Claude Desktop integration.
 
 ## Configuration
 
@@ -89,16 +90,20 @@ Edit `secrets.json` (gitignored):
 {
   "IBKRCredentials": {
     "Host": "127.0.0.1",
-    "Port": 7497,
-    "ClientId": 1
+    "Port": 4001,
+    "ClientId": 10,
+    "IsPaperTrading": false
   }
 }
 ```
-- Port 7497 = Paper Trading
-- Port 7496 = Live Trading
+- Port 4001 = IB Gateway (default)
+- Port 7497 = TWS Paper Trading
+- Port 7496 = TWS Live Trading
+
+**Note:** IB Gateway connection requires TWS API 10.37.02+ with full ProtoBuf method support. See [docs/PlotGateway.md](docs/PlotGateway.md) for troubleshooting.
 
 ## Monday Playbook
-See [DOCS/MondayReady.md](DOCS/MondayReady.md). Quick start:
+See [docs/MondayReady.md](docs/MondayReady.md). Quick start:
 
 **Bash**
 ```bash
