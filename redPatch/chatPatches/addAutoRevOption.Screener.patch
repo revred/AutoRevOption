@@ -1,0 +1,421 @@
+diff --git a/AutoRevOption/AutoRevOption.Screener/AutoRevOption.Screener.csproj b/AutoRevOption/AutoRevOption.Screener/AutoRevOption.Screener.csproj
+new file mode 100644
+index 0000000..e69de29
+--- /dev/null
++++ b/AutoRevOption/AutoRevOption.Screener/AutoRevOption.Screener.csproj
+@@ -0,0 +18 @@
++<Project Sdk="Microsoft.NET.Sdk">
++  <PropertyGroup>
++    <OutputType>Exe</OutputType>
++    <TargetFramework>net9.0</TargetFramework>
++    <Nullable>enable</Nullable>
++    <ImplicitUsings>enable</ImplicitUsings>
++  </PropertyGroup>
++  <ItemGroup>
++    <PackageReference Include="YahooFinanceApi" Version="4.2.2" />
++    <PackageReference Include="CsvHelper" Version="30.0.3" />
++    <PackageReference Include="System.CommandLine" Version="2.0.0-beta4.22272.1" />
++  </ItemGroup>
++  <ItemGroup>
++    <None Include="Data/Tickers_US_5000.csv">
++      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
++    </None>
++  </ItemGroup>
++</Project>
+diff --git a/AutoRevOption/AutoRevOption.Screener/Program.cs b/AutoRevOption/AutoRevOption.Screener/Program.cs
+new file mode 100644
+index 0000000..e69de29
+--- /dev/null
++++ b/AutoRevOption/AutoRevOption.Screener/Program.cs
+@@ -0,0 +8 @@
++using System.CommandLine;
++using AutoRevOption.Screener.Core;
++
++var root = new RootCommand("AutoRevOption.Screener — 50/200 SMA inflection (golden cross within 1 week)");
++var cmd = Commands.Build();
++root.AddCommand(cmd.BuildTickers);
++root.AddCommand(cmd.Screen);
++return await root.InvokeAsync(args);
+diff --git a/AutoRevOption/AutoRevOption.Screener/README.md b/AutoRevOption/AutoRevOption.Screener/README.md
+new file mode 100644
+index 0000000..e69de29
+--- /dev/null
++++ b/AutoRevOption/AutoRevOption.Screener/README.md
+@@ -0,0 +33 @@
++# AutoRevOption.Screener
++
++- **Runtime:** .NET 9 (matches repository root).
++- **Purpose:** Identify stocks where the **50DMA is about to up‑cross 200DMA within ~1 week** and the 50DMA is already turning up.
++- **Tickers:** Uses a **CSV file** `Data/Tickers_US_5000.csv` (header `Symbol`). You can regenerate it deterministically from **NASDAQ Trader** lists.
++
++## Build
++```
++dotnet build AutoRevOption.Screener/AutoRevOption.Screener.csproj -c Release
++```
++
++## Add to Solution
++```
++dotnet sln AutoRevOption.sln add AutoRevOption.Screener/AutoRevOption.Screener.csproj
++```
++
++## Populate tickers (CSV)
++```
++dotnet run --project AutoRevOption.Screener -- build-tickers --out AutoRevOption.Screener/Data/Tickers_US_5000.csv
++```
++*Source: NASDAQ Trader Symbol Directory (nasdaqlisted.txt, otherlisted.txt).*
++
++## Run screener
++```
++dotnet run --project AutoRevOption.Screener -- screen --csv AutoRevOption.Screener/Data/Tickers_US_5000.csv --days-ahead 5 --out inflection_candidates.csv
++```
++
++### Tunables
++`--reg-lookback 10 --min-r2 0.6 --min-up-days 3 --max-abs-dist-pct 3.0 --require-price-above-50`
++
++## Notes
++- For production, swap `YahooFinanceApi` with Polygon/ThetaData provider (plug-in interface kept minimal).
++- This project **does not** mutate any other repo code.
+diff --git a/AutoRevOption/AutoRevOption.Screener/Data/Tickers_US_5000.csv b/AutoRevOption/AutoRevOption.Screener/Data/Tickers_US_5000.csv
+new file mode 100644
+index 0000000..e69de29
+--- /dev/null
++++ b/AutoRevOption/AutoRevOption.Screener/Data/Tickers_US_5000.csv
+@@ -0,0 +11 @@
++Symbol
++AAPL
++MSFT
++AMZN
++GOOGL
++META
++NVDA
++BRK.B
++TSLA
++AVGO
++V
+diff --git a/AutoRevOption/AutoRevOption.Screener/Core/Commands.cs b/AutoRevOption/AutoRevOption.Screener/Core/Commands.cs
+new file mode 100644
+index 0000000..e69de29
+--- /dev/null
++++ b/AutoRevOption/AutoRevOption.Screener/Core/Commands.cs
+@@ -0,0 +65 @@
++using System.CommandLine;
++using CsvHelper.Configuration;
++using CsvHelper;
++using System.Globalization;
++
++namespace AutoRevOption.Screener.Core;
++
++public class Commands
++{
++    public required Command BuildTickers { get; init; }
++    public required Command Screen { get; init; }
++
++    public static Commands Build()
++    {
++        var buildTickers = new Command("build-tickers", "Create/refresh Data/Tickers_US_5000.csv from NASDAQ Trader lists.");
++        var outOpt = new Option<FileInfo>("--out", () => new FileInfo(Path.Combine("Data", "Tickers_US_5000.csv")), "CSV output path");
++        buildTickers.AddOption(outOpt);
++        buildTickers.SetHandler(async (FileInfo outFile) =>
++        {
++            var list = await SymbolUniverse.BuildUSCommonAsync(5000);
++            Directory.CreateDirectory(Path.GetDirectoryName(outFile.FullName)!);
++            await File.WriteAllLinesAsync(outFile.FullName, list.Prepend("Symbol"));
++            Console.WriteLine($"Wrote {list.Count} tickers -> {outFile.FullName}");
++        }, outOpt);
++
++        var screen = new Command("screen", "Run one-week 50/200 SMA up-cross screener using CSV tickers.");
++        var csvPath = new Option<FileInfo>("--csv", () => new FileInfo(Path.Combine("Data", "Tickers_US_5000.csv")), "CSV of tickers with header 'Symbol'.");
++        var daysAhead = new Option<int>("--days-ahead", () => 5);
++        var regLookback = new Option<int>("--reg-lookback", () => 10);
++        var minR2 = new Option<double>("--min-r2", () => 0.6);
++        var minUpDays = new Option<int>("--min-up-days", () => 3);
++        var maxAbsPct = new Option<double>("--max-abs-dist-pct", () => 3.0);
++        var reqAbove = new Option<bool>("--require-price-above-50", () => false);
++        var outCsv = new Option<FileInfo>("--out", () => new FileInfo("inflection_candidates.csv"));
++        screen.AddOption(csvPath);
++        screen.AddOption(daysAhead);
++        screen.AddOption(regLookback);
++        screen.AddOption(minR2);
++        screen.AddOption(minUpDays);
++        screen.AddOption(maxAbsPct);
++        screen.AddOption(reqAbove);
++        screen.AddOption(outCsv);
++        screen.SetHandler(async (FileInfo csv, int da, int rl, double r2, int up, double maxpct, bool requireAbove, FileInfo outFile) =>
++        {
++            var tickers = await CsvTickers.LoadAsync(csv.FullName);
++            var cfg = new ScreenConfig
++            {
++                DaysAhead = da,
++                RegLookbackDays = rl,
++                MinR2 = r2,
++                MinUpDays = up,
++                MaxAbsDistPct = maxpct < 0 ? null : maxpct,
++                RequirePriceAboveSma50 = requireAbove
++            };
++            var rows = await Screener.RunAsync(tickers, cfg);
++            using var writer = new StreamWriter(outFile.FullName);
++            var csvcfg = new CsvConfiguration(CultureInfo.InvariantCulture){ HasHeaderRecord = true };
++            using var w = new CsvWriter(writer, csvcfg);
++            w.WriteRecords(rows);
++            Console.WriteLine($"Wrote {rows.Count} candidates -> {outFile.FullName}");
++        }, csvPath, daysAhead, regLookback, minR2, minUpDays, maxAbsPct, reqAbove, outCsv);
++
++        return new Commands { BuildTickers = buildTickers, Screen = screen };
++    }
++}
+diff --git a/AutoRevOption/AutoRevOption.Screener/Core/CsvTickers.cs b/AutoRevOption/AutoRevOption.Screener/Core/CsvTickers.cs
+new file mode 100644
+index 0000000..e69de29
+--- /dev/null
++++ b/AutoRevOption/AutoRevOption.Screener/Core/CsvTickers.cs
+@@ -0,0 +21 @@
++using CsvHelper;
++using CsvHelper.Configuration;
++using System.Globalization;
++
++namespace AutoRevOption.Screener.Core;
++
++public static class CsvTickers
++{
++    public static async Task<List<string>> LoadAsync(string path)
++    {
++        using var reader = new StreamReader(path);
++        var cfg = new CsvConfiguration(CultureInfo.InvariantCulture){ HasHeaderRecord = true };
++        using var csv = new CsvReader(reader, cfg);
++        return csv.GetRecords<TickerRow>().Select(r => r.Symbol.Trim())
++                  .Where(s => !string.IsNullOrWhiteSpace(s))
++                  .Distinct(StringComparer.OrdinalIgnoreCase)
++                  .ToList();
++    }
++
++    public record TickerRow(string Symbol);
++}
+diff --git a/AutoRevOption/AutoRevOption.Screener/Core/Indicators.cs b/AutoRevOption/AutoRevOption.Screener/Core/Indicators.cs
+new file mode 100644
+index 0000000..e69de29
+--- /dev/null
++++ b/AutoRevOption/AutoRevOption.Screener/Core/Indicators.cs
+@@ -0,0 +38 @@
++namespace AutoRevOption.Screener.Core;
++
++public static class Indicators
++{
++    public static decimal?[] SMA(decimal[] series, int window)
++    {
++        var res = new decimal?[series.Length];
++        if (series.Length < window) return res;
++        decimal sum = 0m;
++        for (int i = 0; i < series.Length; i++)
++        {
++            sum += series[i];
++            if (i >= window) sum -= series[i - window];
++            if (i >= window - 1) res[i] = sum / window;
++        }
++        return res;
++    }
++
++    public record LinRegResult(double? SlopePerStep, double? R2);
++
++    public static LinRegResult LinReg(decimal[] y, int lookback)
++    {
++        if (lookback < 2 || y.Length < lookback) return new LinRegResult(null, null);
++        int start = y.Length - lookback;
++        double[] x = Enumerable.Range(0, lookback).Select(i => (double)i).ToArray();
++        double[] yy = y.Skip(start).Take(lookback).Select(v => (double)v).ToArray();
++        double xm = x.Average();
++        double ym = yy.Average();
++        double sxx = x.Sum(v => (v - xm) * (v - xm));
++        if (sxx == 0) return new LinRegResult(null, null);
++        double sxy = x.Zip(yy).Sum(p => (p.First - xm) * (p.Second - ym));
++        double slope = sxy / sxx;
++        double sst = yy.Sum(v => (v - ym) * (v - ym));
++        double ssr = yy.Sum(v => Math.Pow((ym + slope * (v - xm)) - v, 2));
++        double r2 = sst > 0 ? 1.0 - (ssr / sst) : double.NaN;
++        return new LinRegResult(slope, r2);
++    }
++}
+diff --git a/AutoRevOption/AutoRevOption.Screener/Core/Screener.cs b/AutoRevOption/AutoRevOption.Screener/Core/Screener.cs
+new file mode 100644
+index 0000000..e69de29
+--- /dev/null
++++ b/AutoRevOption/AutoRevOption.Screener/Core/Screener.cs
+@@ -0,0 +129 @@
++using YahooFinanceApi;
++
++namespace AutoRevOption.Screener.Core;
++
++public record ScreenConfig
++{
++    public int DaysAhead { get; init; } = 5;
++    public int RegLookbackDays { get; init; } = 10;
++    public double MinR2 { get; init; } = 0.6;
++    public int MinUpDays { get; init; } = 3;
++    public double? MaxAbsDistPct { get; init; } = 3.0;
++    public bool RequirePriceAboveSma50 { get; init; } = false;
++}
++
++public record ScreenRow
++{
++    public string Ticker { get; init; } = "";
++    public decimal Price { get; init; }
++    public int? EstDays { get; init; }
++    public decimal SpreadNow { get; init; }
++    public decimal DeltaPerDay { get; init; }
++    public decimal Slope50 { get; init; }
++    public double R2_50 { get; init; }
++    public decimal Slope200 { get; init; }
++    public double R2_200 { get; init; }
++}
++
++public static class Screener
++{
++    public static async Task<List<ScreenRow>> RunAsync(List<string> tickers, ScreenConfig cfg)
++    {
++        var results = new List<ScreenRow>();
++        var batchSize = 32;
++        for (int i = 0; i < tickers.Count; i += batchSize)
++        {
++            var batch = tickers.Skip(i).Take(batchSize).ToList();
++            try
++            {
++                var dict = await Yahoo.GetHistoricalAsync(batch, DateTime.UtcNow.AddYears(-2), DateTime.UtcNow, Period.Daily);
++                foreach (var kv in dict)
++                {
++                    var t = kv.Key;
++                    var quotes = kv.Value?.OrderBy(q => q.DateTime).ToList() ?? new List<Candle>();
++                    if (quotes.Count < 210) continue;
++                    var row = AnalyzeTicker(t, quotes, cfg);
++                    if (row != null) results.Add(row);
++                }
++            }
++            catch
++            {
++                continue;
++            }
++        }
++        return results.OrderBy(r => r.EstDays ?? 99).ThenByDescending(r => r.DeltaPerDay).ToList();
++    }
++
++    static ScreenRow? AnalyzeTicker(string ticker, List<Candle> q, ScreenConfig cfg)
++    {
++        var close = q.Select(x => (decimal)x.Close).ToArray();
++        var sma50 = Indicators.SMA(close, 50);
++        var sma200 = Indicators.SMA(close, 200);
++        if (sma200[^1] == null) return null;
++
++        int n = cfg.RegLookbackDays;
++        var s50 = Indicators.LinReg((from v in sma50 select v ?? decimal.Zero).ToArray(), n);
++        var s200 = Indicators.LinReg((from v in sma200 select v ?? decimal.Zero).ToArray(), n);
++        var lastIdx = close.Length - 1;
++        var slope50 = (decimal)(s50.SlopePerStep ?? 0m);
++        var r2_50 = s50.R2 ?? double.NaN;
++        var slope200 = (decimal)(s200.SlopePerStep ?? 0m);
++        var r2_200 = s200.R2 ?? double.NaN;
++
++        // SMA50 up-days in last 5
++        int upDays5 = 0;
++        for (int i = 1; i <= 5; i++)
++        {
++            var prev = sma50[lastIdx - i];
++            var curr = sma50[lastIdx - i + 1];
++            if (prev != null && curr != null && curr > prev) upDays5++;
++        }
++
++        if (!(slope50 > 0 && !double.IsNaN(r2_50) && r2_50 >= cfg.MinR2)) return null;
++        if (upDays5 < cfg.MinUpDays) return null;
++
++        var price = close[^1];
++        var s50now = sma50[^1] ?? 0m;
++        var s200now = sma200[^1] ?? 0m;
++        var d0 = s50now - s200now;
++
++        if (cfg.RequirePriceAboveSma50 && price < s50now) return null;
++        if (cfg.MaxAbsDistPct is double p && p >= 0)
++        {
++            var maxAbs = (decimal)(p / 100.0) * price;
++            if (Math.Abs(d0) > maxAbs)
++            {
++                // allow projection to override
++            }
++        }
++
++        var deltaPerDay = slope50 - slope200;
++        int? estDays = null;
++        if (d0 < 0)
++        {
++            for (int a = 1; a <= cfg.DaysAhead; a++)
++            {
++                var dn = d0 + deltaPerDay * a;
++                if (d0 < 0 && dn >= 0) { estDays = a; break; }
++            }
++        }
++        else
++        {
++            return null;
++        }
++        if (estDays is null) return null;
++
++        return new ScreenRow
++        {
++            Ticker = ticker,
++            Price = price,
++            EstDays = estDays,
++            SpreadNow = d0,
++            DeltaPerDay = deltaPerDay,
++            Slope50 = slope50,
++            R2_50 = r2_50,
++            Slope200 = slope200,
++            R2_200 = r2_200
++        };
++    }
++}
+diff --git a/AutoRevOption/AutoRevOption.Screener/Core/SymbolUniverse.cs b/AutoRevOption/AutoRevOption.Screener/Core/SymbolUniverse.cs
+new file mode 100644
+index 0000000..e69de29
+--- /dev/null
++++ b/AutoRevOption/AutoRevOption.Screener/Core/SymbolUniverse.cs
+@@ -0,0 +44 @@
++namespace AutoRevOption.Screener.Core;
++
++public static class SymbolUniverse
++{
++    public static async Task<List<string>> BuildUSCommonAsync(int cap)
++    {
++        using var http = new HttpClient(){ Timeout = TimeSpan.FromSeconds(60)};
++        var urls = new[] {
++            "https://www.nasdaqtrader.com/dynamic/symdir/nasdaqlisted.txt",
++            "https://www.nasdaqtrader.com/dynamic/symdir/otherlisted.txt"
++        };
++        var list = new List<string>();
++        foreach (var url in urls)
++        {
++            string text = await http.GetStringAsync(url);
++            foreach (var line in text.Split('\n').Skip(1))
++            {
++                var raw = line.Trim();
++                if (string.IsNullOrWhiteSpace(raw)) continue;
++                if (raw.StartsWith("File Creation Time")) break;
++                var parts = raw.Split('|');
++                if (parts.Length < 2) continue;
++                var sym = parts[0].Trim().ToUpperInvariant();
++                var name = parts[1].ToUpperInvariant();
++                if (!IsCommonStock(sym, name)) continue;
++                list.Add(sym);
++            }
++        }
++        var dedup = list.Distinct().OrderBy(s => s, StringComparer.Ordinal).ToList();
++        if (dedup.Count > cap) dedup = dedup.Take(cap).ToList();
++        return dedup;
++    }
++
++    static bool IsCommonStock(string sym, string name)
++    {
++        string[] bad = { " ETF", " ETN", " WARRANT", " WT", " UNIT", " UNITS", " PREFERRED", " PFD", " RIGHTS", " RIGHT",
++                         " NOTE", " BOND", " DEPOSITARY", " ADR ", " ADRS", " TRUST", " FUND", " CLOSED END FUND",
++                         " SPAC", " TRACKING", " CONTINGENT VALUE", " ACQUISITION CORP"};
++        foreach (var b in bad) if (name.Contains(b)) return false;
++        string[] symBad = { "^", ".", "-", "=" };
++        foreach (var b in symBad) if (sym.Contains(b)) return false;
++        return true;
++    }
++}
