@@ -2,8 +2,8 @@
 // Establishes connection and displays account/position data
 
 using AutoRevOption.Monitor;
-using AutoRevOption.Shared.Configuration;
-using AutoRevOption.Shared.Ibkr;
+using AutoRevOption.Shared.Portal;
+using AutoRevOption.Client;
 
 // Check if running in MCP mode
 if (args.Length > 0 && args[0] == "--mcp")
@@ -15,88 +15,18 @@ if (args.Length > 0 && args[0] == "--mcp")
 Console.OutputEncoding = System.Text.Encoding.UTF8;
 Console.WriteLine("AutoRevOption.Monitor — IBKR Read-Only Connection\n");
 
-// Load secrets
-var secretsPath = Path.Combine(Directory.GetCurrentDirectory(), "..", "secrets.json");
-if (!File.Exists(secretsPath))
-{
-    Console.WriteLine($"❌ secrets.json not found at {secretsPath}");
-    Console.WriteLine("\nPlease create secrets.json with:");
-    Console.WriteLine(@"{
-  ""IBKRCredentials"": {
-    ""Host"": ""127.0.0.1"",
-    ""Port"": 7497,
-    ""ClientId"": 1
-  }
-}");
-    return;
-}
+// Use ClientPortalLoginService (handles secrets internally)
+Console.WriteLine("Logging in to Client Portal...");
+var loginService = new ClientPortalLoginService();
 
-SecretConfig config;
-try
-{
-    config = SecretConfig.LoadFromFile(secretsPath);
-    Console.WriteLine($"✅ Loaded secrets from {secretsPath}");
-    Console.WriteLine($"   Host: {config.IBKRCredentials.Host}:{config.IBKRCredentials.Port}");
-    Console.WriteLine($"   ClientId: {config.IBKRCredentials.ClientId}\n");
-}
-catch (Exception ex)
-{
-    Console.WriteLine($"❌ Failed to load secrets: {ex.Message}");
-    return;
-}
-
-// Check and launch Gateway if needed
-var gatewayManager = new GatewayManager(config.IBKRCredentials);
-
-Console.WriteLine($"\n{gatewayManager.GetStatus()}\n");
-
-var gatewayReady = await gatewayManager.EnsureGatewayRunningAsync();
-if (!gatewayReady)
-{
-    Console.WriteLine("\n❌ IB Gateway is not running");
-    Console.WriteLine("\nOptions:");
-    Console.WriteLine("1. Start IB Gateway manually and log in");
-    Console.WriteLine($"2. Set AutoLaunch: true in secrets.json and configure GatewayPath");
-    Console.WriteLine("3. Enable API: Configure → Settings → API → Settings");
-    Console.WriteLine($"4. Verify port {config.IBKRCredentials.Port} (7497=paper, 7496=live)");
-    Console.WriteLine("\nPress Enter to retry or Ctrl+C to exit...");
-    Console.ReadLine();
-
-    gatewayReady = await gatewayManager.EnsureGatewayRunningAsync();
-    if (!gatewayReady)
-    {
-        Console.WriteLine("\n❌ Still cannot connect to IB Gateway. Exiting.");
-        return;
-    }
-}
-
-// Create IBKR connection
-var ibkr = new IbkrConnection(config.IBKRCredentials);
-
-// Start Gateway monitoring in background
+Connection? ibkr = null;
 var cts = new CancellationTokenSource();
-var monitorTask = Task.Run(() => gatewayManager.MonitorGatewayAsync(cts.Token));
 
 try
 {
-    // Connect
-    var connected = await ibkr.ConnectAsync();
-    if (!connected)
-    {
-        Console.WriteLine("\n❌ Failed to connect to IBKR API");
-        Console.WriteLine($"\nGateway Status: {gatewayManager.GetStatus()}");
-        Console.WriteLine("\nTroubleshooting:");
-        Console.WriteLine("1. Ensure you've logged into IB Gateway");
-        Console.WriteLine("2. Check API settings: Configure → Settings → API → Settings");
-        Console.WriteLine("3. Enable 'Enable ActiveX and Socket Clients'");
-        Console.WriteLine($"4. Verify port {config.IBKRCredentials.Port} matches (7497=paper, 7496=live)");
-        Console.WriteLine("5. Add trusted IP: 127.0.0.1");
-        cts.Cancel();
-        return;
-    }
-
+    var client = await loginService.LoginAsync(headless: true, twoFactorTimeoutMinutes: 2);
+    ibkr = new Connection(client);
     Console.WriteLine("\n=== IBKR Connection Established ===\n");
-    Console.WriteLine($"Gateway Status: {gatewayManager.GetStatus()}\n");
 
     // Interactive menu
     while (true)
@@ -146,23 +76,14 @@ finally
 {
     Console.WriteLine("\nShutting down...");
     cts.Cancel();
-    ibkr.Disconnect();
-    gatewayManager.Dispose();
-
-    try
-    {
-        await monitorTask;
-    }
-    catch (TaskCanceledException)
-    {
-        // Expected
-    }
+    ibkr?.Disconnect();
+    ibkr?.Dispose();
 }
 
-static async Task ShowAccountSummary(IbkrConnection ibkr)
+static async Task ShowAccountSummary(Connection ibkr)
 {
     Console.WriteLine("\n--- Account Summary ---");
-    var account = await ibkr.GetAccountInfoAsync("All");
+    var account = await ibkr.GetAccountInfoAsync();
 
     if (account == null)
     {
@@ -187,7 +108,7 @@ static async Task ShowAccountSummary(IbkrConnection ibkr)
     }
 }
 
-static async Task ShowPositions(IbkrConnection ibkr)
+static async Task ShowPositions(Connection ibkr)
 {
     Console.WriteLine("\n--- Positions ---");
     var positions = await ibkr.GetPositionsAsync();
@@ -219,7 +140,7 @@ static async Task ShowPositions(IbkrConnection ibkr)
     }
 }
 
-static async Task MonitorLoop(IbkrConnection ibkr)
+static async Task MonitorLoop(Connection ibkr)
 {
     Console.WriteLine("\n--- Monitor Loop (Ctrl+C to stop) ---");
     Console.WriteLine("Refreshing every 30 seconds...\n");

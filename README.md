@@ -84,21 +84,7 @@ Exposes 6 tools: get_connection_status, get_account_summary, get_positions, get_
 See [docs/MCP_Setup.md](docs/MCP_Setup.md) and [docs/Monitor_MCP_Setup.md](docs/Monitor_MCP_Setup.md) for Claude Desktop integration.
 
 ## Configuration
-
-Edit `secrets.json` (gitignored):
-```json
-{
-  "IBKRCredentials": {
-    "Host": "127.0.0.1",
-    "Port": 4001,
-    "ClientId": 10,
-    "IsPaperTrading": false
-  }
-}
-```
-- Port 4001 = IB Gateway (default)
-- Port 7497 = TWS Paper Trading
-- Port 7496 = TWS Live Trading
+Encapsulated.
 
 **Note:** IB Gateway connection requires TWS API 10.37.02+ with full ProtoBuf method support. See [docs/PlotGateway.md](docs/PlotGateway.md) for troubleshooting.
 

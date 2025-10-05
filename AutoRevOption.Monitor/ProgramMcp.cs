@@ -3,9 +3,9 @@
 using System.Text.Json;
 using AutoRevOption.Monitor;
 using AutoRevOption.Monitor.Mcp;
-using AutoRevOption.Shared.Configuration;
-using AutoRevOption.Shared.Ibkr;
+using AutoRevOption.Shared.Portal;
 using AutoRevOption.Shared.Context;
+using AutoRevOption.Client;
 
 namespace AutoRevOption.Monitor;
 
@@ -30,64 +30,36 @@ public static class ProgramMcp
 
     private static async Task RunMcpServer()
     {
-        // Load secrets
-        var secretsPath = Path.Combine(Directory.GetCurrentDirectory(), "..", "secrets.json");
-        if (!File.Exists(secretsPath))
-        {
-            Console.Error.WriteLine($"[MCP] ERROR: secrets.json not found at {secretsPath}");
-            Environment.Exit(1);
-            return;
-        }
+        // Use ClientPortalLoginService to handle authentication and secrets
+        Console.Error.WriteLine("[MCP] Initializing Client Portal login service...");
+        var loginService = new ClientPortalLoginService();
 
-        SecretConfig config;
+        AutoRevClient? client = null;
         try
         {
-            config = SecretConfig.LoadFromFile(secretsPath);
-            Console.Error.WriteLine($"[MCP] Loaded secrets from {secretsPath}");
+            // LoginAsync will:
+            // 1. Load secrets from AutoRevOption.Client folder (internally)
+            // 2. Ensure gateway is running via GatewayProcessManager
+            // 3. Perform browser login if needed (with 2FA support)
+            client = await loginService.LoginAsync(headless: true, twoFactorTimeoutMinutes: 2);
+            Console.Error.WriteLine("[MCP] ✅ Logged in to Client Portal API");
         }
         catch (Exception ex)
         {
-            Console.Error.WriteLine($"[MCP] ERROR: Failed to load secrets: {ex.Message}");
-            Environment.Exit(1);
-            return;
-        }
-
-        // Initialize Gateway Manager
-        var gatewayManager = new GatewayManager(config.IBKRCredentials);
-        Console.Error.WriteLine($"[MCP] Gateway Status: {gatewayManager.GetStatus()}");
-
-        // Ensure Gateway is running
-        var gatewayReady = await gatewayManager.EnsureGatewayRunningAsync();
-        if (!gatewayReady)
-        {
-            Console.Error.WriteLine("[MCP] WARNING: IB Gateway is not running");
-            Console.Error.WriteLine("[MCP] MCP server will start, but IBKR operations will fail until Gateway is running");
-        }
-
-        // Create IBKR connection
-        var ibkr = new IbkrConnection(config.IBKRCredentials);
-
-        // Connect to IBKR
-        var connected = await ibkr.ConnectAsync();
-        if (!connected)
-        {
-            Console.Error.WriteLine("[MCP] WARNING: Failed to connect to IBKR API");
+            Console.Error.WriteLine($"[MCP] WARNING: Login failed: {ex.Message}");
             Console.Error.WriteLine("[MCP] MCP server will start, but IBKR operations will fail");
         }
-        else
-        {
-            Console.Error.WriteLine("[MCP] ✅ Connected to IBKR API");
-        }
+
+        // Create IBKR connection wrapper using the authenticated client
+        var ibkr = client != null
+            ? new Connection(client)
+            : new Connection(new AutoRevClient("https://localhost:5000/v1/api"));
 
         // Create MCP server
-        var server = new ScreenContext(ibkr, gatewayManager, config.IBKRCredentials);
+        var server = new ScreenContext(ibkr);
 
         Console.Error.WriteLine($"[MCP] {server.Name} v{server.Version} started");
         Console.Error.WriteLine("[MCP] Listening on stdio...");
-
-        // Start Gateway monitoring in background
-        var cts = new CancellationTokenSource();
-        var monitorTask = Task.Run(() => gatewayManager.MonitorGatewayAsync(cts.Token));
 
         try
         {
@@ -142,19 +114,8 @@ public static class ProgramMcp
         finally
         {
             Console.Error.WriteLine("[MCP] Shutting down...");
-            cts.Cancel();
             ibkr.Disconnect();
-            gatewayManager.Dispose();
-
-            try
-            {
-                await monitorTask;
-            }
-            catch (TaskCanceledException)
-            {
-                // Expected
-            }
-
+            ibkr.Dispose();
             Console.Error.WriteLine("[MCP] Server stopped");
         }
     }

@@ -67,8 +67,13 @@ AutoRevOption implements a **layered architecture** for systematic options tradi
 - `IBKRMarketData` - IBKR market data subscription settings
 - `TradingLimits` - Account-level risk limits
 
-**`AutoRevOption.Shared.Ibkr`**
-- `GatewayManager` - IB Gateway lifecycle management (launch, monitor, health)
+**`AutoRevOption.Shared.Portal`**
+- `GatewayProcessManager` - Client Portal Gateway lifecycle (singleton, auto-launch)
+- `ClientPortalBrowserLogin` - Selenium automation for IBKR login with 2FA
+- `ClientPortalLoginService` - High-level login orchestration
+- `AutoRevClient` - REST client for Client Portal API (HTTPS port 5000)
+- `Connection` - Main connection wrapper with position cache integration
+- `PositionCacheService` - SQLite-based position cache for fast MCP responses
 
 **`AutoRevOption.Shared.Tvc`** (Future - Phase 3)
 - `Tvc.Common` - Shared TVC types (Leg, TVCEnums)
@@ -94,12 +99,15 @@ AutoRevOption implements a **layered architecture** for systematic options tradi
 **Purpose:** Read-only IBKR connection monitor with MCP interface
 
 - **MCP Server:** Exposes IBKR account/position monitoring
-- **Gateway Manager:** Auto-launch and monitor IB Gateway
-- **IBKR Integration:** Real TWS API connection (read-only)
+- **Gateway Manager:** Auto-launch and monitor Client Portal Gateway
+- **IBKR Integration:** Client Portal REST API (HTTPS port 5000)
+- **Position Cache:** SQLite storage for fast offline access
+- **Browser Automation:** Headless Chrome with 2FA support
 - **Tools:**
   - `get_connection_status` - Gateway health check
   - `get_account_summary` - Account balances and margin
-  - `get_positions` - All open positions
+  - `get_positions` - All open positions (updates cache)
+  - `get_positions_fast` - Cached positions (instant, no API call)
   - `get_option_positions` - Options positions only
   - `get_account_greeks` - Portfolio-level Greeks
   - `check_gateway` - Gateway status with auto-launch
@@ -115,6 +123,35 @@ AutoRevOption implements a **layered architecture** for systematic options tradi
   - `RulesEngineTests.cs` - Rules validation tests
 
 ## Data Flow
+
+### Position Cache Flow ⭐ **Fast MCP Responses**
+
+```
+1. API Fetch (Slow - 200-800ms)
+   └─→ GetPositionsAsync()
+   └─→ HTTP GET https://localhost:5000/v1/api/portfolio/positions
+   └─→ Parse JSON response
+   └─→ Calculate SHA256 hash
+   └─→ Compare with cached hash
+   └─→ Update SQLite if changed (atomic transaction)
+   └─→ Return positions
+
+2. Cached Fetch (Fast - 2-7ms) ⭐
+   └─→ GetCachedPositions()
+   └─→ SQLite query (indexed)
+   └─→ Return positions from local DB
+   └─→ No network I/O, instant response
+
+3. Change Detection
+   └─→ SHA256 hash of sorted position JSON
+   └─→ Compare with CacheMetadata.positions_hash
+   └─→ Skip DB write if unchanged (efficient)
+   └─→ Update only when positions actually change
+```
+
+**Database Location:** `%LocalApplicationData%/AutoRevOption/positions.db`
+
+**Use Case:** MCP tools can use cached positions for instant responses, periodically refresh from API.
 
 ### TVC (Trade Vet Card) Flow ⭐ **Key Architecture**
 
@@ -191,6 +228,12 @@ Claude Desktop
 - `OptionsRadar.yaml` - Trading rules and risk parameters
 - Environment-specific settings (paper vs. live)
 
+### 6. **Performance Optimization**
+- **Position Cache:** SQLite storage for 100x faster responses
+- **Change Detection:** Only update cache when data actually changes
+- **Session Persistence:** Browser stays alive indefinitely (no repeated 2FA)
+- **Singleton Gateway:** Single gateway process shared across all apps
+
 ## File Organization
 
 ```
@@ -199,7 +242,13 @@ AutoRevOption/
 │   ├── Context/              # MCP protocol types
 │   ├── Prime/Models/         # ⭐ Prime execution models
 │   ├── Configuration/        # Secrets and config
-│   ├── Ibkr/                 # Gateway management
+│   ├── Portal/               # Client Portal API integration
+│   │   ├── GatewayProcessManager.cs      # Gateway lifecycle
+│   │   ├── ClientPortalBrowserLogin.cs   # Selenium automation
+│   │   ├── ClientPortalLoginService.cs   # Login orchestration
+│   │   ├── AutoRevClient.cs              # REST API client
+│   │   ├── Connection.cs                 # Main connection wrapper
+│   │   └── PositionCacheService.cs       # ⭐ SQLite position cache
 │   └── Tvc/                  # TVC models (Phase 3)
 │       ├── Common/
 │       ├── SelectTVC/
@@ -210,6 +259,8 @@ AutoRevOption/
 ├── docs/                     # Documentation
 │   ├── tvc_spec/            # SelectTVC.md, WriteTVC.md
 │   ├── Architecture_Overview.md  # This file
+│   ├── Position_Cache.md    # ⭐ Position cache guide
+│   ├── Session_Management.md # Browser session persistence
 │   └── ...
 ├── scripts/                  # Helper scripts
 │   ├── build.sh/bat
@@ -245,5 +296,7 @@ AutoRevOption/
 
 - [SelectTVC Specification](tvc_spec/SelectTVC.md)
 - [WriteTVC Specification](tvc_spec/WriteTVC.md)
+- [Position Cache Guide](Position_Cache.md) ⭐ **SQLite-based fast MCP responses**
+- [Session Management Guide](Session_Management.md) - Browser session persistence
 - [MCP Setup Guide](MCP_Setup.md)
 - [Test Safety Guide](Test_Safety_Guide.md)

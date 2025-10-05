@@ -1,0 +1,23 @@
+--- a/AutoRevOption.Shared/Portal/ClientPortalBrowserLogin.cs
++++ b/AutoRevOption.Shared/Portal/ClientPortalBrowserLogin.cs
+@@ -251,6 +251,20 @@ public class ClientPortalBrowserLogin : IDisposable
+     }
+
+     /// <summary>
++    /// Reset session - forces logout and cleanup
++    /// Call this when you want to invalidate the current session and require fresh login
++    /// </summary>
++    public void ResetSession()
++    {
++        Console.WriteLine("[Browser] 🔄 Resetting session - closing browser and clearing authentication");
++        Dispose();
++
++        // Reset flags
++        _keepSessionAlive = false;
++        _disposed = false;
++    }
++
++    /// <summary>
+     /// Close browser and end session
+     /// </summary>
+     public void Dispose()

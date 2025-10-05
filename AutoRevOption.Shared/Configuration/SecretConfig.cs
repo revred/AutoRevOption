@@ -27,15 +27,8 @@ public class SecretConfig
 
 public class IBKRCredentials
 {
-    public string Host { get; set; } = "127.0.0.1";
-    public int Port { get; set; } = 7497;
-    public int ClientId { get; set; } = 1;
-    public string GatewayPath { get; set; } = string.Empty;
     public string Username { get; set; } = string.Empty;
-    public bool IsPaperTrading { get; set; } = true;
-    public bool AutoLaunch { get; set; } = false;
-    public bool AutoReconnect { get; set; } = true;
-    public int ReconnectDelaySeconds { get; set; } = 5;
+    public string Password { get; set; } = string.Empty;
 }
 
 public class IBKRMarketData

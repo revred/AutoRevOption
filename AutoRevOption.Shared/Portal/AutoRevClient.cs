@@ -1,22 +1,22 @@
-// CpApiClient.cs — REST client for IBKR Client Portal Web API
+// AutoRevClient.cs — REST client for IBKR Client Portal Web API
 using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
-namespace AutoRevOption.Client;
+namespace AutoRevOption.Shared.Portal;
 
 /// <summary>
-/// Client for IBKR Client Portal Gateway REST API
+/// AutoRev Client for IBKR Client Portal Gateway REST API
 /// No EWrapper callbacks, pure HTTP/WebSocket
 /// </summary>
-public class CpApiClient : IDisposable
+public class AutoRevClient : IDisposable
 {
     private readonly HttpClient _http;
     private readonly string _baseUrl;
     private readonly Timer _tickleTimer;
     private bool _disposed;
 
-    public CpApiClient(string baseUrl = "https://localhost:5000/v1/api")
+    public AutoRevClient(string baseUrl = "https://localhost:5000/v1/api")
     {
         _baseUrl = baseUrl.TrimEnd('/');
 
@@ -37,6 +37,63 @@ public class CpApiClient : IDisposable
     }
 
     /// <summary>
+    /// Authenticate with username and password (initiates 2FA)
+    /// </summary>
+    public async Task<SsoValidateResponse?> InitiateLoginAsync(string username, string password)
+    {
+        try
+        {
+            var payload = new { username, password };
+            var response = await _http.PostAsJsonAsync("/iserver/auth/ssodh/init", payload);
+
+            var result = await response.Content.ReadFromJsonAsync<SsoValidateResponse>();
+
+            if (result != null)
+            {
+                Console.WriteLine($"[AutoRev] Login initiated. Check your IBKR mobile app for 2FA notification.");
+            }
+
+            return result;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[AutoRev] Login initiation failed: {ex.Message}");
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Wait for 2FA completion and check authentication status
+    /// Polls for up to 'timeoutMinutes' minutes
+    /// </summary>
+    public async Task<bool> WaitForAuthenticationAsync(int timeoutMinutes = 2)
+    {
+        Console.WriteLine($"[AutoRev] Waiting up to {timeoutMinutes} minutes for 2FA approval...");
+
+        var deadline = DateTime.Now.AddMinutes(timeoutMinutes);
+        var pollInterval = TimeSpan.FromSeconds(3);
+
+        while (DateTime.Now < deadline)
+        {
+            var authStatus = await GetAuthStatusAsync();
+
+            if (authStatus?.Authenticated == true && authStatus.Connected)
+            {
+                Console.WriteLine($"[AutoRev] ✅ Authentication successful!");
+                return true;
+            }
+
+            var remaining = (deadline - DateTime.Now).TotalSeconds;
+            Console.WriteLine($"[AutoRev] Waiting for 2FA... ({remaining:F0}s remaining)");
+
+            await Task.Delay(pollInterval);
+        }
+
+        Console.WriteLine($"[AutoRev] ❌ Authentication timeout after {timeoutMinutes} minutes");
+        return false;
+    }
+
+    /// <summary>
     /// Check authentication status
     /// </summary>
     public async Task<AuthStatus?> GetAuthStatusAsync()
@@ -44,12 +101,18 @@ public class CpApiClient : IDisposable
         try
         {
             var response = await _http.PostAsync("/iserver/auth/status", null);
-            response.EnsureSuccessStatusCode();
+
+            // 401 or 403 means not authenticated
+            if (!response.IsSuccessStatusCode)
+            {
+                return new AuthStatus(false, false, false, "Not authenticated");
+            }
+
             return await response.Content.ReadFromJsonAsync<AuthStatus>();
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[CPAPI] Auth status check failed: {ex.Message}");
+            Console.WriteLine($"[AutoRev] Auth status check failed: {ex.Message}");
             return null;
         }
     }
@@ -64,12 +127,12 @@ public class CpApiClient : IDisposable
             var response = await _http.PostAsync("/tickle", null);
             if (response.IsSuccessStatusCode)
             {
-                Console.WriteLine($"[CPAPI] Session tickle OK");
+                Console.WriteLine($"[AutoRev] Session tickle OK");
             }
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[CPAPI] Tickle failed: {ex.Message}");
+            Console.WriteLine($"[AutoRev] Tickle failed: {ex.Message}");
         }
     }
 
@@ -86,7 +149,7 @@ public class CpApiClient : IDisposable
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[CPAPI] Get accounts failed: {ex.Message}");
+            Console.WriteLine($"[AutoRev] Get accounts failed: {ex.Message}");
             return null;
         }
     }
@@ -104,7 +167,7 @@ public class CpApiClient : IDisposable
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[CPAPI] Get positions failed: {ex.Message}");
+            Console.WriteLine($"[AutoRev] Get positions failed: {ex.Message}");
             return null;
         }
     }
@@ -122,7 +185,7 @@ public class CpApiClient : IDisposable
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[CPAPI] Get account summary failed: {ex.Message}");
+            Console.WriteLine($"[AutoRev] Get account summary failed: {ex.Message}");
             return null;
         }
     }
@@ -137,6 +200,16 @@ public class CpApiClient : IDisposable
 }
 
 // Response models
+public record SsoValidateResponse(
+    [property: JsonPropertyName("challenge")] string? Challenge,
+    [property: JsonPropertyName("authenticated")] bool Authenticated,
+    [property: JsonPropertyName("connected")] bool Connected,
+    [property: JsonPropertyName("competing")] bool Competing,
+    [property: JsonPropertyName("message")] string? Message,
+    [property: JsonPropertyName("MAC")] string? Mac,
+    [property: JsonPropertyName("fail")] string? Fail
+);
+
 public record AuthStatus(
     [property: JsonPropertyName("authenticated")] bool Authenticated,
     [property: JsonPropertyName("competing")] bool Competing,

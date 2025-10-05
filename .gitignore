@@ -30,3 +30,6 @@ appsettings.*.json
 *.csx
 !scripts/*.ps1
 !scripts/*.csx
+# Client Portal Gateway (in AutoRevOption.Client folder)
+AutoRevOption.Client/.ClientPortal/
+AutoRevOption.Client/secrets.json

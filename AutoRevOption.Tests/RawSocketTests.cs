@@ -1,4 +1,4 @@
-// IbkrRawSocketTests.cs — Low-level socket test to diagnose Gateway communication
+// RawSocketTests.cs — Low-level socket test to diagnose Gateway communication
 
 using System.Net.Sockets;
 using System.Text;
@@ -7,11 +7,11 @@ using Xunit.Abstractions;
 
 namespace AutoRevOption.Tests;
 
-public class IbkrRawSocketTests
+public class RawSocketTests
 {
     private readonly ITestOutputHelper _output;
 
-    public IbkrRawSocketTests(ITestOutputHelper output)
+    public RawSocketTests(ITestOutputHelper output)
     {
         _output = output;
     }

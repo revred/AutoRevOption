@@ -117,7 +117,7 @@ using AutoRevOption.Shared.Configuration;
 **File to delete:**
 - `AutoRevOption.Monitor/GatewayManager.cs` (236 lines)
 
-**Reason:** Moved to Shared.Ibkr
+**Reason:** Moved to Shared.Portal
 
 **Update references:**
 ```csharp
@@ -126,7 +126,7 @@ using AutoRevOption.Monitor;
 
 // NEW:
 using AutoRevOption.Monitor;
-using AutoRevOption.Shared.Ibkr;
+using AutoRevOption.Shared.Portal;
 ```
 
 **Files affected:**
@@ -149,7 +149,7 @@ public class McpError { ... }
 ```csharp
 using AutoRevOption.Shared.Mcp;
 using AutoRevOption.Shared.Configuration;
-using AutoRevOption.Shared.Ibkr;
+using AutoRevOption.Shared.Portal;
 ```
 
 ---
@@ -308,7 +308,7 @@ git push
 | McpRequest, McpResponse, etc. | AutoRevOption (Minimal) | AutoRevOption.Shared.Mcp |
 | McpRequest, McpResponse, etc. | AutoRevOption.Monitor.Mcp | AutoRevOption.Shared.Mcp |
 | SecretConfig, IBKRCredentials | AutoRevOption.Monitor | AutoRevOption.Shared.Configuration |
-| GatewayManager | AutoRevOption.Monitor | AutoRevOption.Shared.Ibkr |
+| GatewayManager | AutoRevOption.Monitor | AutoRevOption.Shared.Portal |
 | Candidate, OrderPlan, etc. | AutoRevOption (Minimal) | AutoRevOption.Shared.Models.Legacy |
 | StrategyType | AutoRevOption (Minimal) | AutoRevOption.Shared.Models.Legacy |
 

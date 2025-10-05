@@ -3,7 +3,7 @@
 using System.Text.Json;
 using AutoRevOption.Monitor;
 using AutoRevOption.Shared.Configuration;
-using AutoRevOption.Shared.Ibkr;
+using AutoRevOption.Shared.Portal;
 using AutoRevOption.Shared.Context;
 
 namespace AutoRevOption.Monitor.Mcp;
@@ -14,18 +14,14 @@ public interface IScreenContext : IMcpServer
 
 public class ScreenContext : IScreenContext
 {
-    private readonly IbkrConnection _ibkr;
-    private readonly GatewayManager _gateway;
-    private readonly IBKRCredentials _credentials;
+    private readonly Connection _ibkr;
 
     public string Name => "AutoRevOption-Screen";
     public string Version => "1.0.0";
 
-    public ScreenContext(IbkrConnection ibkr, GatewayManager gateway, IBKRCredentials credentials)
+    public ScreenContext(Connection ibkr)
     {
         _ibkr = ibkr;
-        _gateway = gateway;
-        _credentials = credentials;
     }
 
     public async Task<McpResponse> HandleRequest(McpRequest request)
@@ -240,18 +236,12 @@ public class ScreenContext : IScreenContext
 
     private Task<object> GetConnectionStatus()
     {
-        var gatewayRunning = _gateway.IsGatewayRunning();
-        var connected = _ibkr.IsConnected;
+        var connected = _ibkr.IsConnected();
 
         return Task.FromResult<object>(new
         {
-            gatewayRunning,
             connected,
-            host = _credentials.Host,
-            port = _credentials.Port,
-            clientId = _credentials.ClientId,
-            isPaperTrading = _credentials.IsPaperTrading,
-            status = _gateway.GetStatus(),
+            apiUrl = "https://localhost:5000/v1/api",
             timestamp = DateTime.UtcNow
         });
     }
@@ -260,7 +250,7 @@ public class ScreenContext : IScreenContext
     {
         var accountId = args.ContainsKey("accountId") ? args["accountId"]?.ToString() : "All";
 
-        var account = await _ibkr.GetAccountInfoAsync(accountId ?? "All");
+        var account = await _ibkr.GetAccountInfoAsync();
 
         if (account == null)
         {
@@ -377,32 +367,14 @@ public class ScreenContext : IScreenContext
 
     private async Task<object> CheckGateway(Dictionary<string, object> args)
     {
-        var autoLaunch = args.ContainsKey("autoLaunch") &&
-                        args["autoLaunch"] is bool launch && launch;
-
-        var wasRunning = _gateway.IsGatewayRunning();
-
-        if (autoLaunch && !wasRunning)
-        {
-            var launched = await _gateway.EnsureGatewayRunningAsync();
-
-            return new
-            {
-                wasRunning,
-                isRunning = _gateway.IsGatewayRunning(),
-                launchAttempted = true,
-                launchSuccessful = launched,
-                status = _gateway.GetStatus(),
-                timestamp = DateTime.UtcNow
-            };
-        }
+        // Gateway management is now handled by GatewayProcessManager singleton
+        // This tool is deprecated but kept for backwards compatibility
+        await Task.CompletedTask;
 
         return new
         {
-            wasRunning,
-            isRunning = _gateway.IsGatewayRunning(),
-            launchAttempted = false,
-            status = _gateway.GetStatus(),
+            message = "Gateway management is now handled automatically by ClientPortalLoginService",
+            apiUrl = "https://localhost:5000/v1/api",
             timestamp = DateTime.UtcNow
         };
     }

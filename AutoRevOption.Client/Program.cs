@@ -1,114 +1,128 @@
-using AutoRevOption.Client;
+using AutoRevOption.Shared.Configuration;
+using AutoRevOption.Shared.Portal;
 
 namespace AutoRevOption.Client.Test;
 
 /// <summary>
-/// Simple smoke test for CPAPI client
+/// Test automated Client Portal login with 2FA
 /// </summary>
 internal class Program
 {
     public static async Task<int> Main(string[] args)
     {
-        Console.WriteLine("=== Client Portal API Connection Test ===\n");
+        Console.WriteLine("=== Client Portal Automated Login Test ===\n");
 
-        using var client = new CpApiClient("https://localhost:5000/v1/api");
+        // Load credentials from secrets.json (in AutoRevOption.Client folder)
+        var projectRoot = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", ".."));
+        var secretsPath = Path.Combine(projectRoot, "secrets.json");
+        if (!File.Exists(secretsPath))
+        {
+            Console.WriteLine($"❌ secrets.json not found at: {secretsPath}");
+            Console.WriteLine("Please create secrets.json with your IBKR credentials.");
+            return 1;
+        }
+
+        var config = SecretConfig.LoadFromFile(secretsPath);
+
+        if (string.IsNullOrEmpty(config.IBKRCredentials.Username) ||
+            string.IsNullOrEmpty(config.IBKRCredentials.Password))
+        {
+            Console.WriteLine("❌ Username or Password not configured in secrets.json");
+            Console.WriteLine("Please add your IBKR credentials to secrets.json:");
+            Console.WriteLine("  \"Username\": \"your_username\",");
+            Console.WriteLine("  \"Password\": \"your_password\"");
+            return 1;
+        }
+
+        using var client = new AutoRevClient("https://localhost:5000/v1/api");
 
         try
         {
-            // 1. Test authentication status
-            Console.WriteLine("1. Checking authentication status...");
+            // 1. Check if already authenticated
+            Console.WriteLine("1. Checking current authentication status...");
             var authStatus = await client.GetAuthStatusAsync();
 
-            if (authStatus == null)
+            if (authStatus?.Authenticated == true && authStatus.Connected)
             {
-                Console.WriteLine("❌ Failed to get auth status");
-                return 1;
+                Console.WriteLine("✅ Already authenticated!\n");
+            }
+            else
+            {
+                // 2. Perform automated browser login
+                Console.WriteLine($"2. Starting automated browser login for: {config.IBKRCredentials.Username}");
+                Console.WriteLine("   Running headless Chrome browser...\n");
+
+                var browserLogin = new ClientPortalBrowserLogin();
+                var loginSuccess = await browserLogin.LoginAsync(
+                    config.IBKRCredentials.Username,
+                    config.IBKRCredentials.Password,
+                    headless: true,  // Run in headless mode
+                    twoFactorTimeoutMinutes: 2,
+                    keepSessionAlive: true  // Keep browser running
+                );
+
+                if (!loginSuccess)
+                {
+                    Console.WriteLine("❌ Browser login failed");
+                    browserLogin.Dispose();
+                    return 2;
+                }
+
+                Console.WriteLine("✅ Browser login successful\n");
+
+                // Give session time to propagate to API
+                Console.WriteLine("   Waiting for session to propagate...");
+                await Task.Delay(5000);
+
+                // Note: Browser session is kept alive - don't dispose here
             }
 
-            Console.WriteLine($"   Authenticated: {authStatus.Authenticated}");
-            Console.WriteLine($"   Competing: {authStatus.Competing}");
-            Console.WriteLine($"   Connected: {authStatus.Connected}");
-
-            if (!authStatus.Authenticated)
-            {
-                Console.WriteLine("\n⚠️  Not authenticated - please:");
-                Console.WriteLine("   1. Open https://localhost:5000 in browser");
-                Console.WriteLine("   2. Log in with IBKR credentials");
-                Console.WriteLine("   3. Re-run this test");
-                return 2;
-            }
-
-            Console.WriteLine("✅ Authenticated\n");
-
-            // 2. Test accounts
-            Console.WriteLine("2. Fetching portfolio accounts...");
+            // 4. Test connection - get accounts
+            Console.WriteLine("\n4. Fetching portfolio accounts...");
             var accounts = await client.GetAccountsAsync();
 
             if (accounts == null || accounts.Count == 0)
             {
                 Console.WriteLine("❌ No accounts found");
-                return 3;
+                return 4;
             }
 
             Console.WriteLine($"✅ Found {accounts.Count} account(s):");
             foreach (var account in accounts)
             {
-                Console.WriteLine($"   - {account.AccountId} ({account.AccountAlias})");
+                Console.WriteLine($"   - {account.AccountId} ({account.DisplayName ?? account.AccountAlias})");
             }
-            Console.WriteLine();
 
-            // 3. Test positions for first account
+            // 5. Get positions for first account
             var firstAccount = accounts[0].AccountId;
-            Console.WriteLine($"3. Fetching positions for account {firstAccount}...");
+            Console.WriteLine($"\n5. Fetching positions for account {firstAccount}...");
 
             var positions = await client.GetPositionsAsync(firstAccount);
 
-            if (positions == null)
+            if (positions != null)
             {
-                Console.WriteLine("❌ Failed to get positions");
-                return 4;
+                Console.WriteLine($"✅ Found {positions.Count} position(s)");
+                foreach (var pos in positions.Take(5))
+                {
+                    Console.WriteLine($"   - {pos.ContractDesc}: {pos.PositionSize} @ {pos.MarketPrice:C}");
+                }
             }
 
-            Console.WriteLine($"✅ Found {positions.Count} position(s):");
-            foreach (var pos in positions)
-            {
-                Console.WriteLine($"   - ConId: {pos.ConId}, Size: {pos.PositionSize}, MktValue: {pos.MarketValue:C}");
-            }
-            Console.WriteLine();
-
-            // 4. Test account summary
-            Console.WriteLine($"4. Fetching account summary...");
-            var summary = await client.GetAccountSummaryAsync();
-
-            if (summary == null)
-            {
-                Console.WriteLine("❌ Failed to get account summary");
-                return 5;
-            }
-
-            Console.WriteLine("✅ Account summary:");
-            Console.WriteLine($"   AccountId: {summary.AccountId}");
-            Console.WriteLine($"   Alias: {summary.AccountAlias}");
-            Console.WriteLine($"   Type: {summary.Type}");
-            Console.WriteLine($"   Status: {summary.AccountStatus}");
-            Console.WriteLine();
-
-            Console.WriteLine("=== All Tests Passed ===");
-            Console.WriteLine("CPAPI client is working correctly!");
+            Console.WriteLine("\n=== SUCCESS ===");
+            Console.WriteLine("Automated login completed successfully!");
+            Console.WriteLine("Your application can now use the Client Portal API without browser interaction.");
             return 0;
         }
         catch (HttpRequestException ex)
         {
             Console.WriteLine($"\n❌ HTTP Error: {ex.Message}");
-            Console.WriteLine("\nMake sure Client Portal Gateway is running:");
-            Console.WriteLine("  C:\\IBKR\\clientportal\\bin\\run.bat");
-            return 6;
+            Console.WriteLine("\nMake sure Client Portal Gateway is running.");
+            return 5;
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"\n❌ Unexpected error: {ex.Message}");
-            Console.WriteLine($"   {ex.StackTrace}");
-            return 7;
+            Console.WriteLine($"\n❌ Error: {ex.Message}");
+            return 6;
         }
     }
 }

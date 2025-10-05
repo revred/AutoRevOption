@@ -6,16 +6,11 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="System.Text.Json" Version="8.0.5" />
+    <PackageReference Include="System.Text.Json" Version="9.0.0" />
     <PackageReference Include="Google.Protobuf" Version="3.30.0" />
   </ItemGroup>
   <ItemGroup>
-    <!-- Reference to IBKR TWS API C# Client -->
-    <Reference Include="CSharpAPI">
-      <HintPath>C:\IBKR\TWS_API\source\CSharpClient\client\bin\Release\netstandard2.0\CSharpAPI.dll</HintPath>
-    </Reference>
-  </ItemGroup>
-  <ItemGroup>
     <ProjectReference Include="..\AutoRevOption.Shared\AutoRevOption.Shared.csproj" />
+    <ProjectReference Include="..\AutoRevOption.Client\AutoRevOption.Client.csproj" />
   </ItemGroup>
 </Project>

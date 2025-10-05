@@ -1,4 +1,4 @@
-using AutoRevOption.Client;
+using AutoRevOption.Shared.Portal;
 using System;
 using System.Threading.Tasks;
 
@@ -7,13 +7,13 @@ namespace AutoRevOption.Tests;
 /// <summary>
 /// Quick smoke test for Client Portal API connectivity
 /// </summary>
-public class CpApiClientTests
+public class AutoRevClientTests
 {
     public static async Task<int> Main(string[] args)
     {
         Console.WriteLine("=== Client Portal API Connection Test ===\n");
 
-        using var client = new CpApiClient("https://localhost:5000/v1/api");
+        using var client = new AutoRevClient("https://localhost:5000/v1/api");
 
         try
         {
@@ -74,13 +74,13 @@ public class CpApiClientTests
             Console.WriteLine($"✅ Found {positions.Count} position(s):");
             foreach (var pos in positions)
             {
-                Console.WriteLine($"   - ConId: {pos.ConId}, Position: {pos.Position}, MktValue: {pos.MktValue:C}");
+                Console.WriteLine($"   - ConId: {pos.ConId}, Position: {pos.PositionSize}, MktValue: {pos.MarketValue:C}");
             }
             Console.WriteLine();
 
             // 4. Test account summary
-            Console.WriteLine($"4. Fetching account summary for {firstAccount}...");
-            var summary = await client.GetAccountSummaryAsync(firstAccount);
+            Console.WriteLine($"4. Fetching account summary...");
+            var summary = await client.GetAccountSummaryAsync();
 
             if (summary == null)
             {
@@ -89,9 +89,10 @@ public class CpApiClientTests
             }
 
             Console.WriteLine("✅ Account summary:");
-            Console.WriteLine($"   NetLiquidation: {summary.NetLiquidation:C}");
-            Console.WriteLine($"   TotalCashValue: {summary.TotalCashValue:C}");
-            Console.WriteLine($"   AvailableFunds: {summary.AvailableFunds:C}");
+            Console.WriteLine($"   Account ID: {summary.AccountId}");
+            Console.WriteLine($"   Account Title: {summary.AccountTitle}");
+            Console.WriteLine($"   Type: {summary.Type}");
+            Console.WriteLine($"   Currency: {summary.Currency}");
             Console.WriteLine();
 
             Console.WriteLine("=== All Tests Passed ===");

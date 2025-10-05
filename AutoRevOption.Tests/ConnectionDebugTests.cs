@@ -1,17 +1,17 @@
-// IbkrConnectionDebugTests.cs — Comprehensive IBKR connection debugging with verbose logging
+// ConnectionDebugTests.cs — Comprehensive IBKR connection debugging with verbose logging
 
 using AutoRevOption.Shared.Configuration;
-using AutoRevOption.Shared.Ibkr;
+using AutoRevOption.Shared.Portal;
 using Xunit;
 using Xunit.Abstractions;
 
 namespace AutoRevOption.Tests;
 
-public class IbkrConnectionDebugTests
+public class ConnectionDebugTests
 {
     private readonly ITestOutputHelper _output;
 
-    public IbkrConnectionDebugTests(ITestOutputHelper output)
+    public ConnectionDebugTests(ITestOutputHelper output)
     {
         _output = output;
     }
@@ -43,10 +43,8 @@ public class IbkrConnectionDebugTests
         // Display connection parameters
         _output.WriteLine("");
         _output.WriteLine("📋 Connection Parameters:");
-        _output.WriteLine($"   Host: {config.IBKRCredentials.Host}");
-        _output.WriteLine($"   Port: {config.IBKRCredentials.Port}");
-        _output.WriteLine($"   ClientId: {config.IBKRCredentials.ClientId}");
-        _output.WriteLine($"   Paper Trading: {config.IBKRCredentials.IsPaperTrading}");
+        _output.WriteLine($"   Username: {config.IBKRCredentials.Username}");
+        _output.WriteLine($"   API URL: https://localhost:5000/v1/api");
         _output.WriteLine("");
 
         // Redirect Console.WriteLine to test output
@@ -57,19 +55,14 @@ public class IbkrConnectionDebugTests
         try
         {
             // Create connection
-            _output.WriteLine("🔌 Creating IbkrConnection instance...");
-            var connection = new IbkrConnection(config.IBKRCredentials);
+            _output.WriteLine("🔌 Creating Connection instance...");
+            var connection = new Connection(config.IBKRCredentials);
             _output.WriteLine("✅ Instance created");
             _output.WriteLine("");
 
-            // Attempt connection with 30-second wait
-            _output.WriteLine("⏳ Attempting connection (30-second timeout)...");
-            _output.WriteLine("   Waiting for TWS API callbacks:");
-            _output.WriteLine("   - connectAck() - Connection acknowledgment");
-            _output.WriteLine("   - nextValidId() - Connection established with order ID");
-            _output.WriteLine("   - error(2104) - Market data farm connected");
-            _output.WriteLine("   - error(2106) - HMDS data farm connected");
-            _output.WriteLine("   - error(2158) - Secure connection established");
+            // Attempt connection with Client Portal API
+            _output.WriteLine("⏳ Attempting connection to Client Portal Gateway...");
+            _output.WriteLine("   This will check authentication and start browser login if needed");
             _output.WriteLine("");
 
             var startTime = DateTime.Now;
@@ -116,27 +109,22 @@ public class IbkrConnectionDebugTests
                 _output.WriteLine("      - Is IB Gateway running and logged in?");
                 _output.WriteLine("      - Is the status showing as connected to IBKR servers?");
                 _output.WriteLine("");
-                _output.WriteLine("   2. Check IB Gateway API Settings:");
-                _output.WriteLine($"      - Socket Port: Should be {config.IBKRCredentials.Port}");
-                _output.WriteLine("      - Master API client ID: Try setting to blank/0 (not 10)");
-                _output.WriteLine("      - Read-Only API: Should be UNCHECKED");
+                _output.WriteLine("   2. Check Client Portal Gateway:");
+                _output.WriteLine("      - Ensure gateway is running on port 5000");
+                _output.WriteLine("      - Check browser authentication at https://localhost:5000");
                 _output.WriteLine("");
                 _output.WriteLine("   3. Check Network:");
-                _output.WriteLine("      - Run: netstat -an | findstr :4001");
-                _output.WriteLine("      - Should show: TCP 0.0.0.0:4001 LISTENING");
+                _output.WriteLine("      - Run: netstat -an | findstr :5000");
+                _output.WriteLine("      - Should show: TCP [::]:5000 LISTENING");
                 _output.WriteLine("");
-                _output.WriteLine("   4. Check IB Gateway Logs:");
-                _output.WriteLine("      - Location: C:\\Users\\{YourUsername}\\Jts\\");
-                _output.WriteLine("      - Files: api.*.log, ibgateway.*.log");
-                _output.WriteLine("      - Look for: Connection attempts, API client registrations, errors");
+                _output.WriteLine("   4. Check Credentials:");
+                _output.WriteLine("      - Verify username/password in secrets.json");
+                _output.WriteLine("      - Ensure 2FA is approved on mobile app");
                 _output.WriteLine("");
                 _output.WriteLine("   5. Restart Sequence:");
-                _output.WriteLine("      - Close IB Gateway completely");
+                _output.WriteLine("      - Stop Client Portal Gateway");
                 _output.WriteLine("      - Wait 10 seconds");
-                _output.WriteLine("      - Restart IB Gateway and log in");
-                _output.WriteLine("      - Check API settings again");
-                _output.WriteLine("      - Set Master API client ID to blank or 0");
-                _output.WriteLine("      - Try connection again");
+                _output.WriteLine("      - Restart gateway and test connection");
                 _output.WriteLine("");
                 _output.WriteLine("   6. Check Console Output Above:");
                 _output.WriteLine("      - Did you see '[IBKR] Connection acknowledged'?");
